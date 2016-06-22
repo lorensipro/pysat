@@ -7,3 +7,12 @@ It is a nice toy to play with.
 
 The idea is to be able to quickly play with CDCL concepts.
 If you understand it, you can dig into Minisat/Glucose source code now!
+
+### How to use it? ###
+
+Just go into the src directory and type:
+''
+python pysat.py ../example/sample.cnf
+''
+
+Good luck!
