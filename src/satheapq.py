@@ -30,29 +30,34 @@ class SatHeapq():
         return not self.empty()
 
     ''' Index traversal functions '''
-    def _left(self, i): return i*2+1
-    def _right(self, i): return (i+1)*2
-    def _parent(self, i): return (i-1) >> 1
+    @staticmethod
+    def left(i): return i*2+1
+    
+    @staticmethod
+    def right(i): return (i+1)*2
+    
+    @staticmethod
+    def parent(i): return (i-1) >> 1
 
     def _percolateUp(self, i):
         x  = self._heap[i]
-        p  = self._parent(i)
+        p  = SatHeapq.parent(i)
         
         while i is not 0 and self._lt(x, self._heap[p]):
             self._heap[i]                = self._heap[p]
             self._indices[self._heap[p]] = i
             i                            = p
-            p                            = self._parent(p)
+            p                            = SatHeapq.parent(p)
         self._heap[i]    = x;
         self._indices[x] = i;
 
     def _percolateDown(self, i):
         x = self._heap[i]
-        while self._left(i) < len(self._heap):
-            if self._right(i) < len(self._heap) and self._lt(self._heap[self._right(i)], self._heap[self._left(i)]):
-                child = self._right(i)
+        while SatHeapq.left(i) < len(self._heap):
+            if SatHeapq.right(i) < len(self._heap) and self._lt(self._heap[SatHeapq.right(i)], self._heap[SatHeapq.left(i)]):
+                child = SatHeapq.right(i)
             else:
-                child = self._left(i)
+                child = SatHeapq.left(i)
             if not self._lt(self._heap[child], x): break
             self._heap[i]          = self._heap[child]
             self._indices[self._heap[i]] = i
