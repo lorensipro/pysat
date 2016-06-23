@@ -15,4 +15,7 @@ Just go into the src directory and type:
 python pysat.py ../example/sample.cnf
 ''
 
+
+Note: the DPLL implementation is not yet working. Need to implement a proper heuristics mechanism.
+
 Good luck!
