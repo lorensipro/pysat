@@ -10,14 +10,16 @@ from satboundedqueue import *
 from prettyPrinter import *
 
 
-class Constants():
-    '''Constants used inside the solver and outside, to read the search status'''
-    lit_False = 0
-    lit_True = 1
-    lit_Undef = 2
 
 class Solver():
     ''' Some function names are taken from the Minisat interface '''
+
+    class Constants():
+        '''Constants used inside the solver and outside, to read the search status'''
+        lit_False = 0
+        lit_True = 1
+        lit_Undef = 2
+
     _cst = Constants()
 
     class Configuration():
@@ -25,8 +27,9 @@ class Solver():
         varDecay = 0.95
         default_value = False    # default value for branching
         verbosity = 1
-        printModel = False
+        printModel = True 
         restartInc = 2                         # restart interval factor (as in Minisat)
+        printLevel = 0            # 0=no prints, 1=minimum, 3=explain everything (TODO)
  
     _config = None            # Configuration of this solver
     _nbvars = 0               # Number of variables
@@ -44,7 +47,7 @@ class Solver():
     
     _flags = MyArray('I')     # Used to mark variables (for LBD computation)
     _flag = 0
-    _finalModel = []          # the model (if SAT) will be copied in this array of variables)
+    finalModel = []          # the model (if SAT) will be copied in this array of variables)
 
     # statistics
     _conflicts = 0          # total number of conflicts
@@ -138,8 +141,6 @@ class Solver():
         while self._trailIndexToPropagate < len(self._trail):
             self._propagations += 1
             litToPropagate = self._trail[self._trailIndexToPropagate]
-            #printTrail(self)
-            #printClauses(self, lambda x : self._valueLit(x) != cst.lit_Undef, lambda x : self._valueLit(x) == cst.lit_True)
             self._trailIndexToPropagate += 1
             i = 0; j = 0; wl = self._watches[litToPropagate]       # wl is the list of watched clauses to inspect 
             while i < len(wl):
@@ -310,9 +311,12 @@ class Solver():
         self._cancelUntil(0) # Notes that if SAT was proved, no cancelUntil will be called and thus all variables keep their assigned values
         return self._cst.lit_Undef
             
-    def solve(self, maxConflicts = None):
-        '''The solve repeatedly call the search function. Each time a restart is fired,
-           the search function returns lit_Undef'''
+
+     # by default we impose a simple restart strategy (call it with maxConflicts = None for no restarts)
+    def solve(self, maxConflicts = lambda s: int((100*(1.5**s._restarts)))):
+        '''The solve repeatedly call the search function (each time a restart is fired,
+           the search function returns lit_Undef). This function can return lit_Undef
+           if interrupted by the user.'''
         self._time1 = time.time()
         try:
             self._status = self._cst.lit_Undef
@@ -324,9 +328,18 @@ class Solver():
             self._searchTime = time.time() - self._time1
             print("c Interrupted")
             self.printFinalStats()
-            return 1 
+            return self._cst.lit_Undef   # Interrupted 
 
         self._searchTime = time.time() - self._time1
+
+        if self._status == self._cst.lit_True: # We copy the solution before cancelling the decisions
+          assert len(self.finalModel)==0
+          for v in range(0, len(self._values)):
+              val = self._values[v]
+              assert val is not self._cst.lit_Undef
+              self.finalModel.append(val==self._cst.lit_True) # API: users can read the values in this array
+
+        self._cancelUntil(0)
         return self._status 
 
 
@@ -385,7 +398,6 @@ if __name__ == "__main__":
 
     banner()
     solver = Solver()
-    cst = Constants()
 
     if len(sys.argv) > 1:
         readFile(solver, sys.argv[1])
@@ -394,29 +406,26 @@ if __name__ == "__main__":
         printUsage()
         sys.exit(1)
 
-    result = solver.solve(maxConflicts = lambda s: int((100*(1.5**s._restarts))))
+    result = solver.solve()
 
-    if result == cst.lit_False:
+    if result == solver._cst.lit_False:
         print("c UNSATISFIABLE")
-    elif result == cst.lit_True:
+    elif result == solver._cst.lit_True:
         print("c SATISFIABLE")
     else:
         print("c UNKNOWN")
     solver.printFinalStats()
 
-    if result == cst.lit_True and solver._config.printModel: # SAT was claimed
-        #print("v ", end="")
-        for v in range(0, len(solver._values)):
-           val = solver._values[v]
-           assert val is not cst.lit_Undef
-           solver._finalModel.append(val==cst.lit_True)
-           if val==cst.lit_False: print("-")#, end="")
-           print(str(v+1)+ " ")#, end="")
+    if result == solver._cst.lit_True and solver._config.printModel: # SAT was claimed
+        print("v ", end="")
+        for v in range(0, len(solver.finalModel)):
+           if solver._values[v]: print("-", end="");
+           print(str(v+1)+ " ", end="")
         print("")
 
     # As in the SAT competition, ends with the correct error code
-    if result == cst.lit_False:
+    if result == solver._cst.lit_False:
        sys.exit(20)
-    if result == cst.lit_True:
+    if result == solver._cst.lit_True:
        sys.exit(10)
 
