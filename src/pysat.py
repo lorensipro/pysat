@@ -121,7 +121,7 @@ class Solver():
         v,s = litToVarSign(l)
         assert self._values[v] == self._cst.lit_Undef # Checks that the literal was not already assigned
         self._values[v] = self._cst.lit_False if s else self._cst.lit_True
-        self._reason[v] = r
+        self._reason[v] = r                           # this clause is the reason for this propagation
         self._level[v] = self._decisionLevel()
         self._trail.append(l)
     
@@ -237,12 +237,13 @@ class Solver():
         
         for c in self._clauses:
             if len(c)==1:
-                self._uncheckedEnqueue(c[0]) #FIXME I need to check here if there is a contradiction
+              self._uncheckedEnqueue(c[0]) #FIXME I need to check here if there is a contradiction: trivial UNSAT
+                                           # are not well handled in this pysat version!
             for l in c[0:2]: 
                 self._watches[notLit(l)].append(c)
                 self._scores[litToVar(l)] += 1
 
-        for i in range(0,self._nbvars): self._varHeap.insert(i)     # push all the variables on the heap
+        for i in range(0,self._nbvars): self._varHeap.insert(i)     # push all the variables on the heap (the heap is used by the heuristics for choosing variables)
 
         print("c Building data structures in {t:03.2f}s".format(t=time.time()-starttime))
         print("c Ready to go with {v:d} variables and {c:d} clauses".format(v=self._nbvars, 
