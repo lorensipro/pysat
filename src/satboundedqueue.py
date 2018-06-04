@@ -1,12 +1,6 @@
 from satutils import *
 
 class SatBoundedQueue():
-    _first = None
-    _last = None
-    _data = None
-    _queueSize = None
-    _maxSize = None
-    _sumOfQueue = None
 
     def __init__(self, size=100):
         self._data = MyArray('I')

@@ -35,18 +35,10 @@ def litToVarSign(l):
 class Clause():
     ''' Very simple clause wrapper.
     TODO: Needs to add a sorting technique for building the clause'''
-    literals = None   # Array of literals
-    learnt = False    # True if this is a learnt clause
-    lbd = 0           # Score introduced in Glucose
-    score = 0.0       # CSIDS score (decaying activity score, if used)
-    abstraction = 0   # A int that acts as a Bloom filter (when I will use it)
-    dll_isSAT = False # True if the clause is SAT under the current partial assignment (used in DLL)
-
     def __init__(self, listOfLiterals = None, learnt = False, lbd = None):
         self.literals = array('i')
         self.score = 0.0
         self.learnt = learnt
-        self.lbd = lbd if lbd is not None else len(listOfLiterals)
         self.dll_isSAT = False
         self.dll_size = len(listOfLiterals)
         if listOfLiterals is not None:
@@ -63,7 +55,7 @@ class Clause():
     def getScore(self):
         return self.score
     def _calcAbstraction(self):
-        ''' Computes a simple Bloom filter for the clause '''
+        ''' Computes a simple Bloom filter for the clause. Will be used when we'll preprocess the formulas'''
         filter = 0
         for i in range(0, len(literals)):
             filter &= (l[i] << (i % 64))

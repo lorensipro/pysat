@@ -37,12 +37,11 @@ class MyList(list):
 
 # Some useful classes to ease my algorithms
 class VarHeap():
-    _heap = [] # this is a heapq data structure
-    _score = [] # score on which comparisons are made
-    _entry = MyArray('i') # indexes of variables
 
     def __init__(self, score):
-        _score = score;
+        self._score = score;
+        self._heap = [] # this is a heapq data structure
+        self._entry = MyArray('i') # indexes of variables
         return
 
     def growTo(self, size):

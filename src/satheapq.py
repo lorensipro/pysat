@@ -9,12 +9,11 @@ from satutils import *
 ''' A heap implementation of integers with support for decrease/increase key.'''
 
 class SatHeapq():
-    _lt = None # Function to compare two keys
-    _heap = MyArray('i') # Heap of integers
-    _indices = MyArray('i') # Each integer position (index) in the heap
 
     def __init__(self, lt):
-        self._lt = lt
+        self._lt = lt # Function to compare two keys
+        self._heap = MyArray('i') # Heap of integers
+        self._indices = MyArray('i') # Each integer position (index) in the heap
 
     def ___len__(self):
         return len(self._heap)

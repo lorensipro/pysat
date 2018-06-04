@@ -1,4 +1,3 @@
-import pdb # debugger
 from array import *
 import time, sys
 
@@ -6,10 +5,7 @@ import time, sys
 from satutils import *
 from sattypes import *
 from satheapq import *
-from satboundedqueue import *
 from prettyPrinter import *
-
-
 
 class Solver():
     ''' Some function names are taken from the Minisat interface '''
@@ -20,8 +16,6 @@ class Solver():
         lit_True = 1
         lit_Undef = 2
 
-    _cst = Constants()
-
     class Configuration():
         ''' Contains all the configuration variables for the solver '''
         varDecay = 0.95
@@ -31,50 +25,48 @@ class Solver():
         restartInc = 2                         # restart interval factor (as in Minisat)
         printLevel = 0            # 0=no prints, 1=minimum, 3=explain everything (TODO)
  
-    _config = None            # Configuration of this solver
-    _nbvars = 0               # Number of variables
-    _scores = MyArray('d')    # Array of doubles, score (VSIDS) of each variable (not literals)
-    _varHeap = None           # Heap (that can update scores) of variables
-    _clauses = []             # Simply the list of initial clauses
-    _learnts = []             # List of learnt clauses
-    _reason = MyList()        # _reason[v] is the clause that propagated the literal v or -v (or None if v,-v was a decision)
-    _watches = MyList()       # list of watched clauses by this literal
-    _values = MyArray('b')    # Current assigned values for each variable (in Constants())
-    _polarity = MyArray('b')  # used for the simple phase caching scheme
-    _seen = MyArray('b')      # seen array used to mark variables during conflict analysis
-    _level = MyArray('I')     # decision level of this assigned variable
-    _varInc = 1               # Amount of each variable bump (multiplied by 1/varDecay after each conflict)
-    
-    _flags = MyArray('I')     # Used to mark variables (for LBD computation)
-    _flag = 0
-    finalModel = []          # the model (if SAT) will be copied in this array of variables)
+    def __init__(self):
+        self._cst = self.Constants()
+        self._config = self.Configuration() # Configuration of this solver
 
-    # statistics
-    _conflicts = 0          # total number of conflicts
-    _restarts = 0
-    _propagations = 0       # total number of propagations
-    _propMoves = 0          # number of times a watched was moved
-    _watchesInspections = 0 # number of inspected clauses during propagations
-    _rescaling = 0          # number of times scores were rescaled
-    _sumDecisionLevel = 0
-    _sumTrailSize = 0
-    _resolutions = 0
-    _unaryClauses = 0
+        self._nbvars = 0               # Number of variables
+        self._scores = MyArray('d')    # Array of doubles, score (VSIDS) of each variable (not literals)
+        self._clauses = []             # Simply the list of initial clauses
+        self._learnts = []             # List of learnt clauses
+        self._reason = MyList()        # self._reason[v] is the clause that propagated the literal v or -v (or None if v,-v was a decision)
+        self._watches = MyList()       # list of watched clauses by this literal
+        self._values = MyArray('b')    # Current assigned values for each variable (in Constants())
+        self._polarity = MyArray('b')  # used for the simple phase caching scheme
+        self._seen = MyArray('b')      # seen array used to mark variables during conflict analysis
+        self._level = MyArray('I')     # decision level of this assigned variable
+        self._varInc = 1               # Amount of each variable bump (multiplied by 1/varDecay after each conflict    )
 
-    # Propagation Queue
-    _trail = MyList()          # trail representing the current partial assignment (trail of literals)
-    _trailLevels = MyList()    # Splits the trail in levels
-    _trailIndexToPropagate = 0 # Handles the propagation queue. Literals in _trail (strictly) above are already propagated
+        self.finalModel = []          # the model (if SAT) will be copied in this array of variables)
 
-    def __init__(self, config=None):
-        if config == None:
-            config = self.Configuration()
         self._time0 = time.time()
-        self._config = config
-        self._varHeap = SatHeapq(lambda x,y: self._scores[x] > self._scores[y]) 
+        self._varHeap = SatHeapq(lambda x,y: self._scores[x] > self._scores[y]) # Heap (that can update scores) of variables
+
+        # statistics
+        self._conflicts = 0          # total number of conflicts
+        self._restarts = 0
+        self._propagations = 0       # total number of propagations
+        self._propMoves = 0          # number of times a watched was moved
+        self._watchesInspections = 0 # number of inspected clauses during propagations
+        self._rescaling = 0          # number of times scores were rescaled
+        self._sumDecisionLevel = 0
+        self._sumTrailSize = 0
+        self._resolutions = 0
+        self._unaryClauses = 0
+
+        # Propagation Queue
+        self._trail = MyList()          # trail representing the current partial assignment (trail of literals)
+        self._trailLevels = MyList()    # Splits the trail in levels
+        self._trailIndexToPropagate = 0 # Handles the propagation queue. Literals in _trail (strictly) above are already propagated
+
         return
     
     def _valueLit(self, l):
+        ''' Returns the value of the lit according to the current partial assignment '''
         v,s = litToVarSign(l)
         if self._values[v] is self._cst.lit_Undef: return self._cst.lit_Undef
         if s:
@@ -90,29 +82,34 @@ class Solver():
             v = self._varHeap.removeMin()
             if self._values[v] == self._cst.lit_Undef: break
         if v == None or self._values[v] != self._cst.lit_Undef: return None
-        return varToLit(v, not self._config.default_value)                 # literal is negative if default_value is False
+        return varToLit(v, self._polarity[v])                 # 1-cache scheme 
     
     def _cancelUntil(self, level = 0):
         ''' Backtrack to the given level (undoing everything). Real magic function where
             almost nothing has to be done, thanks to the 2-literals scheme.'''
-        if len(self._trailLevels) <= level: return
-        x = len(self._trail) - 1
-        while x > self._trailLevels[level] - 1:
+
+        if len(self._trailLevels) <= level: 
+          return
+
+        for x in range(len(self._trail) - 1, self._trailLevels[level] - 1, -1):
             l = self._trail[x]
-            self._polarity[litToVar(l)] = signLit(l)  # Memorizes the polarity for branching there next time the variable
+            v = litToVar(l)
+            self._polarity[v] = signLit(l) # Memorizes the polarity for branching there next time the variable
                                                       # is selected by pickbranchlit
-            self._values[litToVar(l)] = self._cst.lit_Undef
-            if not self._varHeap.inHeap(litToVar(l)):
-                self._varHeap.insert(litToVar(l))
-            x -= 1
+            self._values[v] = self._cst.lit_Undef # Simply unassign each variable
+            if not self._varHeap.inHeap(v):
+                self._varHeap.insert(v)     # Put back the variable into the heap (if not already in it)
+
         del self._trail[self._trailLevels[level] - len(self._trail):] # shrinks the trail
         self._trailIndexToPropagate = self._trailLevels[level]
         del self._trailLevels[level - len(self._trailLevels):]        # shrinks the traillevels
         
     def _newDecisionLevel(self):
+        ''' Adds a new decision level. Any new literal pushed on the trail will be at this decision level '''
         self._trailLevels.append(len(self._trail))
 
     def _decisionLevel(self):
+        ''' The decision level is simply the size of this vector '''
         return len(self._trailLevels)
     
     def _uncheckedEnqueue(self, l, r=None):
@@ -121,7 +118,7 @@ class Solver():
         v,s = litToVarSign(l)
         assert self._values[v] == self._cst.lit_Undef # Checks that the literal was not already assigned
         self._values[v] = self._cst.lit_False if s else self._cst.lit_True
-        self._reason[v] = r                           # this clause is the reason for this propagation
+        self._reason[v] = r
         self._level[v] = self._decisionLevel()
         self._trail.append(l)
     
@@ -142,6 +139,7 @@ class Solver():
             self._propagations += 1
             litToPropagate = self._trail[self._trailIndexToPropagate]
             self._trailIndexToPropagate += 1
+
             i = 0; j = 0; wl = self._watches[litToPropagate]       # wl is the list of watched clauses to inspect 
             while i < len(wl):
                 self._watchesInspections += 1
@@ -149,17 +147,15 @@ class Solver():
                 foundNewWatch = False
                 assert notLit(litToPropagate)==c[0] or notLit(litToPropagate)==c[1] # Strong assertion introduced in Minisat 
                 assert len(c) > 1                                  # Clauses of size 1 are just untailed literals at level 0
-                if c[0] == notLit(litToPropagate):
-                    c[0]=c[1]; c[1]=notLit(litToPropagate)         # Make sure the false literal is in 1
+                if c[0] == notLit(litToPropagate):                 # Make sure the false literal is in 1
+                    c[0]=c[1]; c[1]=notLit(litToPropagate)         # If we find a new watch we will move it in 0 
 
-                if self._valueLit(c[0]) == self._cst.lit_True:           # The clause is already satisfied (by the other watch)
+                if self._valueLit(c[0]) == self._cst.lit_True:     # The clause is already satisfied (by the other watch)
                     wl[j] = c; j+=1; i+=1
                     continue
 
-                for k in range(2,len(c)):                          # Remember that c[0] and c[1] are special
-                    l = c[k]
-                    if self._valueLit(l) != self._cst.lit_False: 
-                        assert c[k] == l
+                for k, l in enumerate(c[2:], 2):                   # Remember that c[0] and c[1] are special
+                    if self._valueLit(l) != self._cst.lit_False:   # Found a new (free) watch for l
                         c[k]=c[1]; c[1]=l                          # moves the watched literal to c[1]
                         self._watches[notLit(l)].append(c)         # now this clause is watched by l instead of litToPropagate
                         self._propMoves += 1
@@ -170,7 +166,7 @@ class Solver():
                 if foundNewWatch: 
                     continue
                 
-                if self._valueLit(c[0]) == self._cst.lit_False:          # The clause is empty
+                if self._valueLit(c[0]) == self._cst.lit_False:    # The clause is empty
                     while i < len(wl):                             # Copy remaining watches, preparing for a clean early exit
                         wl[j] = wl[i]; j+=1; i+=1
                     if j < i: del wl[j-i:]                         # pythonic way to remove the unused tail of watched list
@@ -183,70 +179,80 @@ class Solver():
         return None
 
     def _analyze(self, c):
+        ''' Performs the conflict analysis. Better read an explanation somewhere for this function.'''
         learnt = [0] # We leave a room for the asserting literal in place 0
         pathC = 0    # Current number of literals from the last decision level in the conflict analysis
         p = None
         index = len(self._trail) - 1
         backtrackLevel = 0 # Keep track of the largest level in the final clause
         maxbl = -1         # Index of the literal with the largest level (needed to put it in c[1] at the end)
-        while True:
-            if p is not None: self._resolutions += 1
+        while pathC > 0 or p is None:
+            if p is not None: self._resolutions += 1 # p is None when we start the analysis with c
             for j in range(0 if p is None else 1, len(c)):
                 q = c[j]
-                if (self._seen[litToVar(q)]==0) and (self._level[litToVar(q)] > 0):
-                    self._varBump(litToVar(q))
-                    self._seen[litToVar(q)] = 1
-                    if self._level[litToVar(q)] == self._decisionLevel():
+                v = litToVar(q)
+                if (self._seen[v]==0) and (self._level[v] > 0):
+                    self._varBump(v)  # VSIDS here, bumps the variable seen in conflict analysis
+                    self._seen[v] = 1 
+                    if self._level[v] == self._decisionLevel():
                         pathC += 1                                          # one more literal in the conflict level (to remove)
                     else:
-                        learnt.append(q)                                    # q is a literal in the learnt clause
-                        if self._level[litToVar(q)] > backtrackLevel:       # Updates the backtrackLevel
-                            backtrackLevel = self._level[litToVar(q)]
-                            maxbl = len(learnt) - 1
-            while not self._seen[litToVar(self._trail[index])]: index -= 1
+                        learnt.append(q)                                    # q is a literal in the learnt clause number of literals from the last decision level in the conflict analysis
+                        if self._level[v] > backtrackLevel:       # Updates the backtrackLevel
+                            backtrackLevel = self._level[v]       # It is the max of seen levels
+                            maxbl = len(learnt) - 1               # We need to keep its indice: we'll rearrange the clause before backtracking
+            while not self._seen[litToVar(self._trail[index])]: index -= 1 # skip all none seen literals
             p = self._trail[index]
-            c = self._reason[litToVar(p)]
+            c = self._reason[litToVar(p)] # c is the clause that unit propagated the literal p
+                                          # note that, by construction, all literals in c are false except p
             self._seen[litToVar(p)] = 0
             index -= 1
             pathC -= 1
-            if pathC == 0: break
 
         learnt[0] = notLit(p)                                               # The asserting literal (FUIP, where to backtrack)
-        for i in range(1,len(learnt)): self._seen[litToVar(learnt[i])] = 0  # remove the remaining seen tags
+        for l in learnt[1:]: self._seen[litToVar(l)] = 0  # remove the remaining seen tags
 
         if len(learnt) > 1: 
             p = learnt[maxbl]; learnt[maxbl] = learnt[1]; learnt[1] = p
 
-        # computes the LBD
-        lbd = 2
-        return learnt, backtrackLevel, lbd
+        return learnt, backtrackLevel
 
     def addClause(self, listOfInts):
+        ''' API function to add a clause to the solver. Right now, the function
+        buildDataStructure must be called once after all the clauses have been
+        added to the solver.'''
         self._clauses.append(Clause([intToLit(l) for l in listOfInts]))
         self._nbvars = max(self._nbvars, max(abs(i) for i in listOfInts))
 
     def buildDataStructure(self): 
+        ''' Takes all the clauses sent to the solver via the addClause function and
+        effectively add them to the data structure used by the solver. This function
+        must be called only once for each run.'''
         starttime = time.time()
 
         self._values.growTo(self._nbvars, self._cst.lit_Undef)
         for e in [self._values, self._scores, self._polarity, self._reason, self._seen, self._level]:
             e.growTo(self._nbvars)
-        self._watches.growTo(self._nbvars * 2, [])
 
-        for i in range(0,self._nbvars): self._polarity[i] = self._config.default_value; # Fills the default polarity
+        for i in range(0,self._nbvars): 
+          self._polarity[i] = 0 if self._config.default_value else 1 # Fills the default polarity
         
+        self._watches.growTo(self._nbvars * 2, [])
         for c in self._clauses:
-            if len(c)==1:
-              self._uncheckedEnqueue(c[0]) #FIXME I need to check here if there is a contradiction: trivial UNSAT
-                                           # are not well handled in this pysat version!
+            if len(c)==1: # Special case for unary clauses : literal is directly enqueued at decision level 0
+              if self._values[litToVar(c[0])] != self._cst.lit_Undef:
+                 # the literal has already a value. Case not (yet) properly handled in this version
+                 print("c Ooch you sould use a preprocessor to clean your formula.")
+                 sys.exit(1)
+              self._uncheckedEnqueue(c[0]) #FIXME I need to check here if there is a contradiction
             for l in c[0:2]: 
                 self._watches[notLit(l)].append(c)
-                self._scores[litToVar(l)] += 1
 
-        for i in range(0,self._nbvars): self._varHeap.insert(i)     # push all the variables on the heap (the heap is used by the heuristics for choosing variables)
+        for i in range(0,self._nbvars): self._varHeap.insert(i)     # push all the variables on the heap
 
-        print("c Building data structures in {t:03.2f}s".format(t=time.time()-starttime))
-        print("c Ready to go with {v:d} variables and {c:d} clauses".format(v=self._nbvars, 
+        if self._config.verbosity > 0:
+           print("c Building data structures in {t:03.2f}s".format(t=time.time()-starttime))
+           print("c Ready to go with {v:d} variables and {c:d} clauses".format(v=self._nbvars, 
                   c=len(self._clauses)))
  
     def _checkRestart(self):
@@ -258,6 +264,7 @@ class Solver():
         return
 
     def _attachClause(self, c):
+        ''' Attach a clause, will be watched by its 2 first literals '''
         self._watches[notLit(c[0])].append(c) # This will attach the clause
         self._watches[notLit(c[1])].append(c) # attach clause, second watched
 
@@ -288,7 +295,7 @@ class Solver():
 
                 if self._decisionLevel() is 0: return self._cst.lit_False # We proved UNSAT
 
-                nc, backtrackLevel, lbd = self._analyze(confl)            # TODO: the lbd mechanism is not implemented
+                nc, backtrackLevel = self._analyze(confl)            # TODO: the lbd mechanism is not implemented
                 self._varInc /= self._config.varDecay
                 self._cancelUntil(backtrackLevel)
                 if len(nc)==1:                                            # We don't learn unary clauses. We just push them (the above backtrackLevel is 0)
@@ -296,7 +303,7 @@ class Solver():
                     self._unaryClauses += 1
                     self._uncheckedEnqueue(nc[0])
                 else:
-                    ncc = Clause(nc, learnt=True, lbd=lbd)
+                    ncc = Clause(nc, learnt=True)
                     self._learnts.append(ncc)
                     self._attachClause(ncc)
                     self._uncheckedEnqueue(nc[0],ncc)
@@ -335,11 +342,11 @@ class Solver():
 
         if self._status == self._cst.lit_True: # We copy the solution before cancelling the decisions
           assert len(self.finalModel)==0
-          for v in range(0, len(self._values)):
-              val = self._values[v]
+          for v, val in enumerate(self._values):
               assert val is not self._cst.lit_Undef
-              self.finalModel.append(val==self._cst.lit_True) # API: users can read the values in this array
+              self.finalModel.append(v+1 if val==self._cst.lit_True else -v-1) # API: users can read the values in this array
 
+        # We cancel everything, so the current values of variables are deleted too... Use the finalModel
         self._cancelUntil(0)
         return self._status 
 
@@ -349,13 +356,15 @@ class Solver():
             print("c conflicts: 0")
             return
         print("c cpu time: \033[1;32m{t:03.2f}\033[0ms (search={ts:03.2f}s)".format(t=time.time()-self._time0, ts=self._searchTime)) 
-        print("c conflicts: " + str(self._conflicts) + " (" + str(int(self._conflicts /self._searchTime)) + "/s)")
-        print("c unary clauses:" + str(self._unaryClauses))
-        print("c restarts: " + str(self._restarts))
-        print("c propagations: " + str(self._propagations) + " (" + str(int(self._propagations / self._searchTime)) + "/s)")
-        print("c Moved Watches: " + str(self._propMoves))
-        print("c Inspected Watches: " + str(self._watchesInspections))
+        print("c conflicts:", self._conflicts, "(" + str(int(self._conflicts /self._searchTime)) + "/s)")
+        print("c unary clauses:", self._unaryClauses)
+        print("c restarts:", self._restarts)
+        print("c propagations:", self._propagations, "(" + str(int(self._propagations / self._searchTime)) + "/s)")
+        print("c Moved Watches:", self._propMoves)
+        print("c Inspected Watches:", self._watchesInspections)
+        print("c VSIDS rescaling:", self._rescaling)
         print("c Avg Decision Levels: " + str(int(self._sumDecisionLevel / self._conflicts)))
+        print("c Avg Trail Size: " + str(int(self._sumTrailSize / self._conflicts)))
         print("c Resolutions: {r:d} ({rc:03.2f}/confl)".format(r=self._resolutions, rc=self._resolutions/self._conflicts))
 
 
@@ -369,7 +378,7 @@ class Solver():
 if __name__ == "__main__":
 
     def printUsage():
-       print("pysat solver: learning clause learning algorithms (slowly learning things).")
+       print("c pysat solver: learning clause learning algorithms (slowly learning things).")
 
     def banner():
         # The banner (a mandatory thing for students to play with)
@@ -381,9 +390,10 @@ if __name__ == "__main__":
       /___/                    
 '''
         print('\n'.join([ 'c \033[1;31m' + line + '\033[0m' for line in _thisispysat.split('\n')]))
-        print("c                               \033[1;33mThis is pysat 0.2 (L. Simon 2016-2018)\033[0m\nc")
+        print("c                               \033[1;33mThis is pysat 0.3 (L. Simon 2016-2018)\033[0m\nc")
         print("c (slowly) learning CDCL algorithms (roughly 10-50x slower than plain C/C++ CDCL implementations)")
         print("c          but this is a native Python implementation. Easy to play with!")
+        print("c Disclaimer: May not work properly on non-preprocessed formulas (assertion failed on trivial cases)")
     
 
     def readFile(solver, filename):
@@ -392,8 +402,9 @@ if __name__ == "__main__":
         print("c Opening file {f:s}".format(f=filename))
     
         for line in myopen(filename):
-            if not line[0] in ['c','p']:
-                solver.addClause([l for l in list(map(int,line.split())) if l is not 0]) 
+          firstChar = line[0]
+          if not firstChar in ['c','p']:
+             solver.addClause([l for l in list(map(int,line.split())) if l is not 0]) 
 
         print("c File readed in {t:03.2f}s".format(t=time.time()-starttime))
 
@@ -405,6 +416,7 @@ if __name__ == "__main__":
         solver.buildDataStructure()
     else:
         printUsage()
+        print("c - Error - Please give me a cnf(.gz) file as input")
         sys.exit(1)
 
     result = solver.solve()
@@ -419,9 +431,8 @@ if __name__ == "__main__":
 
     if result == solver._cst.lit_True and solver._config.printModel: # SAT was claimed
         print("v ", end="")
-        for v in range(0, len(solver.finalModel)):
-           if solver._values[v]: print("-", end="");
-           print(str(v+1)+ " ", end="")
+        for v in solver.finalModel:
+             print(v," ", end="")
         print("")
 
     # As in the SAT competition, ends with the correct error code
