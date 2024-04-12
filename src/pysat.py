@@ -275,8 +275,8 @@ class Solver():
         rest=self._restarts, 
         una=self._trailLevels[0], 
         unalearnts = self._unaryClauses, 
-        depth = int(self._sumDecisionLevel / (1 if self._conflicts is 0 else self._conflicts)),
-        propdepth = int(self._sumTrailSize / (1 if self._conflicts is 0 else self._conflicts)),
+        depth = int(self._sumDecisionLevel / (1 if self._conflicts == 0 else self._conflicts)),
+        propdepth = int(self._sumTrailSize / (1 if self._conflicts == 0 else self._conflicts)),
         res=self._resolutions)) 
 
     # The main CDCL search procedure, limited to "budget" conflicts
@@ -293,13 +293,13 @@ class Solver():
 
                 if self._conflicts % 100 == 0: self._reportSearch()       # reports the search status evert 100 conflicts
 
-                if self._decisionLevel() is 0: return self._cst.lit_False # We proved UNSAT
+                if self._decisionLevel() == 0: return self._cst.lit_False # We proved UNSAT
 
                 nc, backtrackLevel = self._analyze(confl)            # TODO: the lbd mechanism is not implemented
                 self._varInc /= self._config.varDecay
                 self._cancelUntil(backtrackLevel)
                 if len(nc)==1:                                            # We don't learn unary clauses. We just push them (the above backtrackLevel is 0)
-                    assert backtrackLevel is 0
+                    assert backtrackLevel == 0
                     self._unaryClauses += 1
                     self._uncheckedEnqueue(nc[0])
                 else:
@@ -404,7 +404,7 @@ if __name__ == "__main__":
         for line in myopen(filename):
           firstChar = line[0]
           if not firstChar in ['c','p']:
-             solver.addClause([l for l in list(map(int,line.split())) if l is not 0]) 
+             solver.addClause([l for l in list(map(int,line.split())) if l != 0]) 
 
         print("c File readed in {t:03.2f}s".format(t=time.time()-starttime))
 
