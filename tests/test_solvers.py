@@ -10,7 +10,7 @@ SRC = os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', 'src')
 EXAMPLES = os.path.join(SRC, '..', 'examples')
 sys.path.insert(0, SRC)
 
-import pysat, pysatdpll
+import pysat, pysatdpll, dpll
 from satutils import readFile
 
 
@@ -36,21 +36,21 @@ def isModel(clauses, model):
     trueLits = set(model)
     return all(any(l in trueLits for l in c) for c in clauses)
 
-def runSolver(module, clauses):
-    ''' Builds a quiet solver from the given module, solves the clauses and returns the solver and the result '''
-    solver = module.Solver()
+def runSolver(solverClass, clauses):
+    ''' Builds a quiet solver of the given class, solves the clauses and returns the solver and the result '''
+    solver = solverClass()
     solver._config.verbosity = 0
     for c in clauses: solver.addClause(c)
-    solver.buildDataStructure()
+    if hasattr(solver, 'buildDataStructure'): solver.buildDataStructure() # (old solvers, not incremental)
     return solver, solver.solve()
 
 
 class SolverTests():
-    ''' Tests shared by both solvers (the module to test is in self.module) '''
+    ''' Tests shared by all the solvers (the class to test is in self.solverClass) '''
 
     def checkFormula(self, clauses, n, expectedSat=None):
         if expectedSat is None: expectedSat = bruteForceSat(clauses, n)
-        solver, result = runSolver(self.module, clauses)
+        solver, result = runSolver(self.solverClass, clauses)
         cst = solver._cst
         if expectedSat:
             self.assertEqual(result, cst.lit_True, "should be SAT: " + str(clauses))
@@ -99,10 +99,33 @@ class SolverTests():
 
 
 class CDCLTests(SolverTests, unittest.TestCase):
-    module = pysat
+    solverClass = pysat.Solver
 
 class DPLLTests(SolverTests, unittest.TestCase):
-    module = pysatdpll
+    solverClass = pysatdpll.Solver
+
+class IncrementalTests():
+    ''' Tests for the incremental solvers: clauses are added between two calls to solve() '''
+
+    def test_incremental(self):
+        rnd = random.Random(1789)
+        for i in range(100):
+            n = rnd.randint(3,9)
+            solver = self.solverClass()
+            solver._config.verbosity = 0
+            clauses = []
+            for step in range(6):                                  # The formula gets stronger at each step
+                for c in randomFormula(rnd, n, rnd.randint(1, n), k=rnd.choice([1,2,3,3])):
+                    clauses.append(c); solver.addClause(c)
+                result = solver.solve()
+                if bruteForceSat(clauses, n):
+                    self.assertEqual(result, solver._cst.lit_True, "should be SAT: " + str(clauses))
+                    self.assertTrue(isModel(clauses, solver.finalModel))
+                else:
+                    self.assertEqual(result, solver._cst.lit_False, "should be UNSAT: " + str(clauses))
+
+class ChainDPLLTests(SolverTests, IncrementalTests, unittest.TestCase):
+    solverClass = dpll.DPLL
 
 
 class ParserTests(unittest.TestCase):
@@ -135,7 +158,7 @@ class CommandLineTests(unittest.TestCase):
         return subprocess.run([sys.executable, os.path.join(SRC, script), cnf], capture_output=True, text=True)
 
     def test_unsatBenchmarks(self):
-        for script in ['pysat.py', 'pysatdpll.py']:
+        for script in ['pysat.py', 'pysatdpll.py', 'dpll.py']:
             for f in ['sample.cnf', os.path.join('BMC-Unsat', 'barrel2.cnf.gz'), os.path.join('BMC-Unsat', 'longmult0.cnf.gz')]:
                 r = self.run_(script, os.path.join(EXAMPLES, f))
                 self.assertEqual(r.returncode, 20, script + " " + f + "\n" + r.stdout + r.stderr)
@@ -146,7 +169,7 @@ class CommandLineTests(unittest.TestCase):
         with tempfile.NamedTemporaryFile('w', suffix='.cnf', delete=False) as f:
             f.write("p cnf 30 90\n" + "".join(" ".join(map(str, c)) + " 0\n" for c in clauses))
         try:
-            for script in ['pysat.py', 'pysatdpll.py']:
+            for script in ['pysat.py', 'pysatdpll.py', 'dpll.py']:
                 r = self.run_(script, f.name)
                 self.assertEqual(r.returncode, 10, r.stdout + r.stderr)
                 model = [int(x) for line in r.stdout.splitlines() if line.startswith('v') for x in line[1:].split()]
