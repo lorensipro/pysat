@@ -42,6 +42,7 @@ class Solver():
         self._varInc = 1               # Amount of each variable bump (multiplied by 1/varDecay after each conflict    )
 
         self.finalModel = []          # the model (if SAT) will be copied in this array of variables)
+        self._trivialUnsat = False    # True if the empty clause (or two opposite unary clauses) were found in the input
 
         self._time0 = time.time()
         self._varHeap = SatHeapq(lambda x,y: self._scores[x] > self._scores[y]) # Heap (that can update scores) of variables
@@ -221,8 +222,12 @@ class Solver():
         ''' API function to add a clause to the solver. Right now, the function
         buildDataStructure must be called once after all the clauses have been
         added to the solver.'''
-        self._clauses.append(Clause([intToLit(l) for l in listOfInts]))
-        self._nbvars = max(self._nbvars, max(abs(i) for i in listOfInts))
+        lits = []
+        for i in listOfInts:
+            if -i in lits: return                                  # Tautology: the clause is always satisfied, we skip it
+            if i not in lits: lits.append(i)                       # Duplicated literals would break the 2-watched literals scheme
+        self._clauses.append(Clause([intToLit(l) for l in lits]))
+        self._nbvars = max([self._nbvars] + [abs(i) for i in lits])
 
     def buildDataStructure(self): 
         ''' Takes all the clauses sent to the solver via the addClause function and
@@ -239,14 +244,16 @@ class Solver():
         
         self._watches.growTo(self._nbvars * 2, [])
         for c in self._clauses:
-            if len(c)==1: # Special case for unary clauses : literal is directly enqueued at decision level 0
-              if self._values[litToVar(c[0])] != self._cst.lit_Undef:
-                 # the literal has already a value. Case not (yet) properly handled in this version
-                 print("c Ooch you sould use a preprocessor to clean your formula.")
-                 sys.exit(1)
-              self._uncheckedEnqueue(c[0]) #FIXME I need to check here if there is a contradiction
-            for l in c[0:2]: 
-                self._watches[notLit(l)].append(c)
+            if len(c)==0:                                          # The empty clause: the formula is trivially UNSAT
+                self._trivialUnsat = True
+            elif len(c)==1:                                        # Special case for unary clauses : literal is directly enqueued at decision level 0
+                if self._valueLit(c[0]) == self._cst.lit_False:    # The opposite unary clause was already enqueued
+                    self._trivialUnsat = True
+                elif self._valueLit(c[0]) == self._cst.lit_Undef:  # (if the literal is already true, nothing to do)
+                    self._uncheckedEnqueue(c[0])
+            else:
+                for l in c[0:2]: 
+                    self._watches[notLit(l)].append(c)
 
         for i in range(0,self._nbvars): self._varHeap.insert(i)     # push all the variables on the heap
 
@@ -273,7 +280,7 @@ class Solver():
       print("c {cfl:d} conflicts, {prop:d} propagations, {rest:d} restarts, {una:d}/{unalearnts:d} unaries, {depth:d} decisions depth, {propdepth:d} propagation depth, {res:d} resolutions".format(cfl=self._conflicts,
         prop=self._propagations, 
         rest=self._restarts, 
-        una=self._trailLevels[0], 
+        una=self._trailLevels[0] if self._decisionLevel() > 0 else len(self._trail), 
         unalearnts = self._unaryClauses, 
         depth = int(self._sumDecisionLevel / (1 if self._conflicts == 0 else self._conflicts)),
         propdepth = int(self._sumTrailSize / (1 if self._conflicts == 0 else self._conflicts)),
@@ -291,7 +298,8 @@ class Solver():
                 self._sumDecisionLevel += self._decisionLevel()           # stats about the search
                 self._sumTrailSize += len(self._trail)
 
-                if self._conflicts % 100 == 0: self._reportSearch()       # reports the search status evert 100 conflicts
+                if self._conflicts % 100 == 0 and self._config.verbosity > 0:
+                    self._reportSearch()                                  # reports the search status every 100 conflicts
 
                 if self._decisionLevel() == 0: return self._cst.lit_False # We proved UNSAT
 
@@ -326,6 +334,9 @@ class Solver():
            the search function returns lit_Undef). This function can return lit_Undef
            if interrupted by the user.'''
         self._time1 = time.time()
+        if self._trivialUnsat:                                     # Nothing to search: the formula contains the empty clause
+            self._searchTime = time.time() - self._time1
+            return self._cst.lit_False
         try:
             self._status = self._cst.lit_Undef
             self._restarts = 0
@@ -382,7 +393,7 @@ if __name__ == "__main__":
 
     def banner():
         # The banner (a mandatory thing for students to play with)
-        _thisispysat = '''
+        _thisispysat = r'''
    ___         ____ ___  ______
   / _ \ __ __ / __// _ |/_  __/
  / ___// // /_\ \ / __ | / /   
@@ -390,23 +401,11 @@ if __name__ == "__main__":
       /___/                    
 '''
         print('\n'.join([ 'c \033[1;31m' + line + '\033[0m' for line in _thisispysat.split('\n')]))
-        print("c                               \033[1;33mThis is pysat 0.3 (L. Simon 2016-2018)\033[0m\nc")
+        print("c                               \033[1;33mThis is pysat 0.4 (L. Simon 2016-2026)\033[0m\nc")
         print("c (slowly) learning CDCL algorithms (roughly 10-50x slower than plain C/C++ CDCL implementations)")
         print("c          but this is a native Python implementation. Easy to play with!")
         print("c Disclaimer: May not work properly on non-preprocessed formulas (assertion failed on trivial cases)")
     
-
-    def readFile(solver, filename):
-        ''' A very python-like parser for CNF files (probably too nested I fear)'''
-        starttime = time.time()
-        print("c Opening file {f:s}".format(f=filename))
-    
-        for line in myopen(filename):
-          firstChar = line[0]
-          if not firstChar in ['c','p']:
-             solver.addClause([l for l in list(map(int,line.split())) if l != 0]) 
-
-        print("c File readed in {t:03.2f}s".format(t=time.time()-starttime))
 
     banner()
     solver = Solver()
@@ -422,18 +421,18 @@ if __name__ == "__main__":
     result = solver.solve()
 
     if result == solver._cst.lit_False:
-        print("c UNSATISFIABLE")
+        print("s UNSATISFIABLE")
     elif result == solver._cst.lit_True:
-        print("c SATISFIABLE")
+        print("s SATISFIABLE")
     else:
-        print("c UNKNOWN")
+        print("s UNKNOWN")
     solver.printFinalStats()
 
     if result == solver._cst.lit_True and solver._config.printModel: # SAT was claimed
         print("v ", end="")
         for v in solver.finalModel:
              print(v," ", end="")
-        print("")
+        print("0")
 
     # As in the SAT competition, ends with the correct error code
     if result == solver._cst.lit_False:

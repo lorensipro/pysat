@@ -40,7 +40,7 @@ class Clause():
         self.score = 0.0
         self.learnt = learnt
         self.dll_isSAT = False
-        self.dll_size = len(listOfLiterals)
+        self.dll_size = 0 if listOfLiterals is None else len(listOfLiterals)
         if listOfLiterals is not None:
            self.literals.fromlist(listOfLiterals)
         return
@@ -49,16 +49,17 @@ class Clause():
     def removeLiteral(self, lit):
         self.literals.remove(lit)
     def containsLiteral(self,lit):
-        return self.literals.contains(lit)
-    def incScore(self):
-        self.score += self.var_inc
+        return lit in self.literals
+    def incScore(self, inc = 1.0):
+        self.score += inc
     def getScore(self):
         return self.score
     def _calcAbstraction(self):
-        ''' Computes a simple Bloom filter for the clause. Will be used when we'll preprocess the formulas'''
+        ''' Computes a simple Bloom filter for the clause (as in Minisat). Will be used when we'll preprocess the formulas'''
         filter = 0
-        for i in range(0, len(literals)):
-            filter &= (l[i] << (i % 64))
+        for l in self.literals:
+            filter |= 1 << (litToVar(l) & 31)
+        return filter
     # We (re)define now some classical Python methods
     def __iter__(self):
         ''' Allows to use the iterator from the array import '''

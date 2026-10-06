@@ -15,7 +15,7 @@ class SatHeapq():
         self._heap = MyArray('i') # Heap of integers
         self._indices = MyArray('i') # Each integer position (index) in the heap
 
-    def ___len__(self):
+    def __len__(self):
         return len(self._heap)
 
     def __getitem__(self, index):
@@ -25,7 +25,7 @@ class SatHeapq():
     def __contains__(self, n):
         return self.inHeap(n)
 
-    def __truth__(self, n):
+    def __bool__(self):
         return not self.empty()
 
     ''' Index traversal functions '''
@@ -42,7 +42,7 @@ class SatHeapq():
         x  = self._heap[i]
         p  = SatHeapq.parent(i)
         
-        while i is not 0 and self._lt(x, self._heap[p]):
+        while i != 0 and self._lt(x, self._heap[p]):
             self._heap[i]                = self._heap[p]
             self._indices[self._heap[p]] = i
             i                            = p
