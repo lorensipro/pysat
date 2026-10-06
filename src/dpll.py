@@ -65,10 +65,16 @@ class DPLL(Solver):
             if self._propagate() is not None: self._ok = False
 
     def _attachClause(self, c):
-        ''' The clause becomes visible for the propagation (all its literals are unassigned) '''
+        ''' The clause becomes visible for the propagation. It must be called when all the
+            literals of the trail are propagated (at level 0, or just after a backtrack): the
+            counters can then be computed from the current values of the literals '''
+        assert self._trailIndexToPropagate == len(self._trail)
         c.nbTrue = 0                                               # Number of its literals that were propagated true
         c.nbFalse = 0                                              # ... and false
-        for l in c: self._occ[l].append(c)
+        for l in c:
+            self._occ[l].append(c)
+            if self._litValues[l] == self._cst.lit_True: c.nbTrue += 1
+            elif self._litValues[l] == self._cst.lit_False: c.nbFalse += 1
 
     def _decisionLevel(self):
         ''' The decision level is simply the size of this vector '''
