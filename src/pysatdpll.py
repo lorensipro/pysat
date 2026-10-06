@@ -6,6 +6,7 @@ from satutils import *
 from sattypes import *
 from satheapq import *
 from prettyPrinter import *
+from satstats import *
 
 class Solver():
     ''' A plain DPLL solver (no learning, chronological backtracking), written as
@@ -39,15 +40,16 @@ class Solver():
         self.finalModel = []          # the model (if SAT) will be copied in this array of variables)
         self._trivialUnsat = False    # True if the empty clause (or two opposite unary clauses) were found in the input
 
-        self._time0 = time.time()
         self._varHeap = SatHeapq(lambda x,y: self._scores[x] > self._scores[y]) # Heap of variables (the most frequent first)
 
-        # statistics
-        self._conflicts = 0          # total number of conflicts
-        self._decisions = 0          # total number of decisions
-        self._propagations = 0       # total number of propagations
-        self._occInspections = 0     # number of inspected clauses during propagations
-        self._sumDecisionLevel = 0
+        # statistics (see satstats.py), incremented with self._stats.conflicts += 1
+        self._stats = Stats()
+        self._stats.addCounter('conflicts', "conflicts", rate='time')         # total number of conflicts
+        self._stats.addCounter('decisions', "decisions")                      # total number of decisions
+        self._stats.addCounter('propagations', "propagations", rate='time')   # total number of propagations
+        self._stats.addCounter('occInspections', "Inspected clauses")         # number of inspected clauses during propagations
+        self._stats.addCounter('sumDecisionLevel')                            # sum of the decision levels of the conflicts
+        self._stats.addAverage("Avg Decision Levels", 'sumDecisionLevel', 'conflicts')
 
         # Propagation Queue
         self._trail = MyList()          # trail representing the current partial assignment (trail of literals)
@@ -112,13 +114,14 @@ class Solver():
     def _propagate(self):
         ''' Can return a conflict or None
             This version simply visits all the clauses in which the opposite literal occurs'''
+        stats = self._stats                                          # local variable: faster in the loop
         while self._trailIndexToPropagate < len(self._trail):
-            self._propagations += 1
+            stats.propagations += 1
             litToPropagate = self._trail[self._trailIndexToPropagate]
             self._trailIndexToPropagate += 1
 
             for c in self._occ[notLit(litToPropagate)]:              # c is a clause containing -litToPropagate (now false)
-                self._occInspections += 1
+                stats.occInspections += 1
                 nbUndef = 0; lastUndef = None; satisfied = False
                 for l in c:
                     val = self._valueLit(l)
@@ -182,20 +185,21 @@ class Solver():
 
     # Simply print the search progress
     def _reportSearch(self):
-      print("c {cfl:d} conflicts, {dec:d} decisions, {prop:d} propagations, {depth:d} decisions depth".format(cfl=self._conflicts,
-        dec=self._decisions,
-        prop=self._propagations,
-        depth = int(self._sumDecisionLevel / (1 if self._conflicts == 0 else self._conflicts))))
+      s = self._stats
+      print("c {cfl:d} conflicts, {dec:d} decisions, {prop:d} propagations, {depth:d} decisions depth".format(cfl=s.conflicts,
+        dec=s.decisions,
+        prop=s.propagations,
+        depth = int(s.sumDecisionLevel / (1 if s.conflicts == 0 else s.conflicts))))
 
     # The main DPLL search procedure
     def _search(self):
         while True:
             confl = self._propagate()
             if confl is not None:                                         # We reached a conflict
-                self._conflicts += 1
-                self._sumDecisionLevel += self._decisionLevel()           # stats about the search
+                self._stats.conflicts += 1
+                self._stats.sumDecisionLevel += self._decisionLevel()     # stats about the search
 
-                if self._conflicts % 1000 == 0 and self._config.verbosity > 0:
+                if self._stats.conflicts % 1000 == 0 and self._config.verbosity > 0:
                     self._reportSearch()                                  # reports the search status every 1000 conflicts
 
                 if self._decisionLevel() == 0: return self._cst.lit_False # We proved UNSAT
@@ -207,26 +211,26 @@ class Solver():
             else:                                                          # No conflict
                 l = self._pickBranchLit()                                  # Picks a new variable to branch on
                 if l == None: return self._cst.lit_True                    # All variables are assigned and no conflict: SAT was proven
-                self._decisions += 1
+                self._stats.decisions += 1
                 self._newDecisionLevel()                                   # Creates a new decision level
                 self._uncheckedEnqueue(l)                                  # propagates this literal with no reason (this is a decision)
 
     def solve(self):
         '''Calls the search function. This function can return lit_Undef
            if interrupted by the user.'''
-        self._time1 = time.time()
+        self._stats.startSearch()
         if self._trivialUnsat:                                     # Nothing to search: the formula contains the empty clause
-            self._searchTime = time.time() - self._time1
+            self._stats.stopSearch()
             return self._cst.lit_False
         try:
             self._status = self._search()
         except KeyboardInterrupt:
-            self._searchTime = time.time() - self._time1
+            self._stats.stopSearch()
             print("c Interrupted")
             self.printFinalStats()
             return self._cst.lit_Undef   # Interrupted
 
-        self._searchTime = time.time() - self._time1
+        self._stats.stopSearch()
 
         if self._status == self._cst.lit_True: # We copy the solution before cancelling the decisions
           assert len(self.finalModel)==0
@@ -238,15 +242,7 @@ class Solver():
         return self._status
 
     def printFinalStats(self):
-        if self._conflicts == 0:
-            print("c conflicts: 0")
-            return
-        print("c cpu time: \033[1;32m{t:03.2f}\033[0ms (search={ts:03.2f}s)".format(t=time.time()-self._time0, ts=self._searchTime))
-        print("c conflicts:", self._conflicts, "(" + str(int(self._conflicts /max(self._searchTime, 1e-6))) + "/s)")
-        print("c decisions:", self._decisions)
-        print("c propagations:", self._propagations, "(" + str(int(self._propagations / max(self._searchTime, 1e-6))) + "/s)")
-        print("c Inspected clauses:", self._occInspections)
-        print("c Avg Decision Levels: " + str(int(self._sumDecisionLevel / self._conflicts)))
+        self._stats.printFinal()
 
 
 # when running as a solver:

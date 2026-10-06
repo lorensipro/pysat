@@ -6,6 +6,7 @@ from satutils import *
 from sattypes import *
 from satheapq import *
 from prettyPrinter import *
+from satstats import *
 
 class Solver():
     ''' Some function names are taken from the Minisat interface '''
@@ -44,20 +45,22 @@ class Solver():
         self.finalModel = []          # the model (if SAT) will be copied in this array of variables)
         self._trivialUnsat = False    # True if the empty clause (or two opposite unary clauses) were found in the input
 
-        self._time0 = time.time()
         self._varHeap = SatHeapq(lambda x,y: self._scores[x] > self._scores[y]) # Heap (that can update scores) of variables
 
-        # statistics
-        self._conflicts = 0          # total number of conflicts
-        self._restarts = 0
-        self._propagations = 0       # total number of propagations
-        self._propMoves = 0          # number of times a watched was moved
-        self._watchesInspections = 0 # number of inspected clauses during propagations
-        self._rescaling = 0          # number of times scores were rescaled
-        self._sumDecisionLevel = 0
-        self._sumTrailSize = 0
-        self._resolutions = 0
-        self._unaryClauses = 0
+        # statistics (see satstats.py), incremented with self._stats.conflicts += 1
+        self._stats = Stats()
+        self._stats.addCounter('conflicts', "conflicts", rate='time')         # total number of conflicts
+        self._stats.addCounter('unaryClauses', "unary clauses")               # number of learnt unary clauses
+        self._stats.addCounter('restarts', "restarts")
+        self._stats.addCounter('propagations', "propagations", rate='time')   # total number of propagations
+        self._stats.addCounter('propMoves', "Moved Watches")                  # number of times a watched was moved
+        self._stats.addCounter('watchesInspections', "Inspected Watches")     # number of inspected clauses during propagations
+        self._stats.addCounter('rescaling', "VSIDS rescaling")                # number of times scores were rescaled
+        self._stats.addCounter('sumDecisionLevel')                            # sum of the decision levels of the conflicts
+        self._stats.addCounter('sumTrailSize')                                # sum of the trail sizes at each conflict
+        self._stats.addAverage("Avg Decision Levels", 'sumDecisionLevel', 'conflicts')
+        self._stats.addAverage("Avg Trail Size", 'sumTrailSize', 'conflicts')
+        self._stats.addCounter('resolutions', "Resolutions", rate='conflicts') # number of resolution steps in conflict analysis
 
         # Propagation Queue
         self._trail = MyList()          # trail representing the current partial assignment (trail of literals)
@@ -128,7 +131,7 @@ class Solver():
            function may rescale all the scores.'''
         self._scores[v] += self._varInc
         if self._scores[v] > 1e100: # rescale the scores
-            self._rescaling += 1
+            self._stats.rescaling += 1
             for i in range(0,len(self._scores)): self._scores[i] *= 1e-100
             self._varInc *= 1e-100
         if self._varHeap.inHeap(v): self._varHeap.decrease(v)      # This is a lazy bump: assigned variables will be replaced during cancelUntil
@@ -136,14 +139,15 @@ class Solver():
     def _propagate(self):
         ''' Can return a conflict or None 
             This version uses 2-watched literals'''
+        stats = self._stats                                        # local variable: faster in the loop
         while self._trailIndexToPropagate < len(self._trail):
-            self._propagations += 1
+            stats.propagations += 1
             litToPropagate = self._trail[self._trailIndexToPropagate]
             self._trailIndexToPropagate += 1
 
             i = 0; j = 0; wl = self._watches[litToPropagate]       # wl is the list of watched clauses to inspect 
             while i < len(wl):
-                self._watchesInspections += 1
+                stats.watchesInspections += 1
                 c = wl[i];                                         # c is a clause containing -litToPropagate watched by it
                 foundNewWatch = False
                 assert notLit(litToPropagate)==c[0] or notLit(litToPropagate)==c[1] # Strong assertion introduced in Minisat 
@@ -159,7 +163,7 @@ class Solver():
                     if self._valueLit(l) != self._cst.lit_False:   # Found a new (free) watch for l
                         c[k]=c[1]; c[1]=l                          # moves the watched literal to c[1]
                         self._watches[notLit(l)].append(c)         # now this clause is watched by l instead of litToPropagate
-                        self._propMoves += 1
+                        stats.propMoves += 1
                         i+=1                                       # wl[i] will not be copied to any smaller wl[j]
                         foundNewWatch = True                       # Don't propagate anything, the clause is satisfied
                         break                                      # Stop inspecting the current clause
@@ -188,7 +192,7 @@ class Solver():
         backtrackLevel = 0 # Keep track of the largest level in the final clause
         maxbl = -1         # Index of the literal with the largest level (needed to put it in c[1] at the end)
         while pathC > 0 or p is None:
-            if p is not None: self._resolutions += 1 # p is None when we start the analysis with c
+            if p is not None: self._stats.resolutions += 1 # p is None when we start the analysis with c
             for j in range(0 if p is None else 1, len(c)):
                 q = c[j]
                 v = litToVar(q)
@@ -277,14 +281,15 @@ class Solver():
 
     # Simply print the search progress
     def _reportSearch(self):
-      print("c {cfl:d} conflicts, {prop:d} propagations, {rest:d} restarts, {una:d}/{unalearnts:d} unaries, {depth:d} decisions depth, {propdepth:d} propagation depth, {res:d} resolutions".format(cfl=self._conflicts,
-        prop=self._propagations, 
-        rest=self._restarts, 
+      s = self._stats
+      print("c {cfl:d} conflicts, {prop:d} propagations, {rest:d} restarts, {una:d}/{unalearnts:d} unaries, {depth:d} decisions depth, {propdepth:d} propagation depth, {res:d} resolutions".format(cfl=s.conflicts,
+        prop=s.propagations, 
+        rest=s.restarts, 
         una=self._trailLevels[0] if self._decisionLevel() > 0 else len(self._trail), 
-        unalearnts = self._unaryClauses, 
-        depth = int(self._sumDecisionLevel / (1 if self._conflicts == 0 else self._conflicts)),
-        propdepth = int(self._sumTrailSize / (1 if self._conflicts == 0 else self._conflicts)),
-        res=self._resolutions)) 
+        unalearnts = s.unaryClauses, 
+        depth = int(s.sumDecisionLevel / (1 if s.conflicts == 0 else s.conflicts)),
+        propdepth = int(s.sumTrailSize / (1 if s.conflicts == 0 else s.conflicts)),
+        res=s.resolutions)) 
 
     # The main CDCL search procedure, limited to "budget" conflicts
     def _search(self, budget=None):
@@ -293,12 +298,12 @@ class Solver():
         while budget is None or conflictC < budget:
             confl = self._propagate()
             if confl is not None:                                         # We reached a conflict
-                conflictC += 1; self._conflicts += 1
+                conflictC += 1; self._stats.conflicts += 1
 
-                self._sumDecisionLevel += self._decisionLevel()           # stats about the search
-                self._sumTrailSize += len(self._trail)
+                self._stats.sumDecisionLevel += self._decisionLevel()     # stats about the search
+                self._stats.sumTrailSize += len(self._trail)
 
-                if self._conflicts % 100 == 0 and self._config.verbosity > 0:
+                if self._stats.conflicts % 100 == 0 and self._config.verbosity > 0:
                     self._reportSearch()                                  # reports the search status every 100 conflicts
 
                 if self._decisionLevel() == 0: return self._cst.lit_False # We proved UNSAT
@@ -308,7 +313,7 @@ class Solver():
                 self._cancelUntil(backtrackLevel)
                 if len(nc)==1:                                            # We don't learn unary clauses. We just push them (the above backtrackLevel is 0)
                     assert backtrackLevel == 0
-                    self._unaryClauses += 1
+                    self._stats.unaryClauses += 1
                     self._uncheckedEnqueue(nc[0])
                 else:
                     ncc = Clause(nc, learnt=True)
@@ -329,27 +334,27 @@ class Solver():
             
 
      # by default we impose a simple restart strategy (call it with maxConflicts = None for no restarts)
-    def solve(self, maxConflicts = lambda s: int((100*(1.5**s._restarts)))):
+    def solve(self, maxConflicts = lambda s: int((100*(1.5**s._stats.restarts)))):
         '''The solve repeatedly call the search function (each time a restart is fired,
            the search function returns lit_Undef). This function can return lit_Undef
            if interrupted by the user.'''
-        self._time1 = time.time()
+        self._stats.startSearch()
         if self._trivialUnsat:                                     # Nothing to search: the formula contains the empty clause
-            self._searchTime = time.time() - self._time1
+            self._stats.stopSearch()
             return self._cst.lit_False
         try:
             self._status = self._cst.lit_Undef
-            self._restarts = 0
+            self._stats.restarts = 0
             while self._status == self._cst.lit_Undef:
-                self._restarts += 1
+                self._stats.restarts += 1
                 self._status = self._search(None if maxConflicts==None else maxConflicts(self)) 
         except KeyboardInterrupt:
-            self._searchTime = time.time() - self._time1
+            self._stats.stopSearch()
             print("c Interrupted")
             self.printFinalStats()
             return self._cst.lit_Undef   # Interrupted 
 
-        self._searchTime = time.time() - self._time1
+        self._stats.stopSearch()
 
         if self._status == self._cst.lit_True: # We copy the solution before cancelling the decisions
           assert len(self.finalModel)==0
@@ -363,20 +368,7 @@ class Solver():
 
 
     def printFinalStats(self):
-        if self._conflicts == 0:
-            print("c conflicts: 0")
-            return
-        print("c cpu time: \033[1;32m{t:03.2f}\033[0ms (search={ts:03.2f}s)".format(t=time.time()-self._time0, ts=self._searchTime)) 
-        print("c conflicts:", self._conflicts, "(" + str(int(self._conflicts /self._searchTime)) + "/s)")
-        print("c unary clauses:", self._unaryClauses)
-        print("c restarts:", self._restarts)
-        print("c propagations:", self._propagations, "(" + str(int(self._propagations / self._searchTime)) + "/s)")
-        print("c Moved Watches:", self._propMoves)
-        print("c Inspected Watches:", self._watchesInspections)
-        print("c VSIDS rescaling:", self._rescaling)
-        print("c Avg Decision Levels: " + str(int(self._sumDecisionLevel / self._conflicts)))
-        print("c Avg Trail Size: " + str(int(self._sumTrailSize / self._conflicts)))
-        print("c Resolutions: {r:d} ({rc:03.2f}/confl)".format(r=self._resolutions, rc=self._resolutions/self._conflicts))
+        self._stats.printFinal()
 
 
 # when running as a solver:
