@@ -10,7 +10,7 @@ SRC = os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', 'src')
 EXAMPLES = os.path.join(SRC, '..', 'examples')
 sys.path.insert(0, SRC)
 
-import pysat, pysatdpll, dpll, cdcl
+import pysat, pysatdpll, dpll, cdcl, sato
 from satutils import readFile
 
 
@@ -130,6 +130,9 @@ class ChainDPLLTests(SolverTests, IncrementalTests, unittest.TestCase):
 class ChainCDCLTests(SolverTests, IncrementalTests, unittest.TestCase):
     solverClass = cdcl.CDCL
 
+class ChainSATOTests(SolverTests, IncrementalTests, unittest.TestCase):
+    solverClass = sato.SATO
+
 
 class ParserTests(unittest.TestCase):
 
@@ -161,7 +164,7 @@ class CommandLineTests(unittest.TestCase):
         return subprocess.run([sys.executable, os.path.join(SRC, script), cnf], capture_output=True, text=True)
 
     def test_unsatBenchmarks(self):
-        for script in ['pysat.py', 'pysatdpll.py', 'dpll.py', 'cdcl.py']:
+        for script in ['pysat.py', 'pysatdpll.py', 'dpll.py', 'cdcl.py', 'sato.py']:
             for f in ['sample.cnf', os.path.join('BMC-Unsat', 'barrel2.cnf.gz'), os.path.join('BMC-Unsat', 'longmult0.cnf.gz')]:
                 r = self.run_(script, os.path.join(EXAMPLES, f))
                 self.assertEqual(r.returncode, 20, script + " " + f + "\n" + r.stdout + r.stderr)
@@ -172,7 +175,7 @@ class CommandLineTests(unittest.TestCase):
         with tempfile.NamedTemporaryFile('w', suffix='.cnf', delete=False) as f:
             f.write("p cnf 30 90\n" + "".join(" ".join(map(str, c)) + " 0\n" for c in clauses))
         try:
-            for script in ['pysat.py', 'pysatdpll.py', 'dpll.py', 'cdcl.py']:
+            for script in ['pysat.py', 'pysatdpll.py', 'dpll.py', 'cdcl.py', 'sato.py']:
                 r = self.run_(script, f.name)
                 self.assertEqual(r.returncode, 10, r.stdout + r.stderr)
                 model = [int(x) for line in r.stdout.splitlines() if line.startswith('v') for x in line[1:].split()]

@@ -34,8 +34,8 @@ class DPLL(Solver):
         self._stats.addCounter('conflicts', "conflicts", rate='time')
         self._stats.addCounter('decisions', "decisions", rate='time')
         self._stats.addCounter('propagations', "propagations", rate='time')
-        self._stats.addCounter('clauseUpdates', "Clause counters updated", rate='propagations')
-        self._stats.addCounter('clauseRestores', "Clause counters restored", rate='propagations')
+        self._stats.addCounter('clauseVisits', "Clauses visited (propagation)", rate='propagations')
+        self._stats.addCounter('clauseRestores', "Clauses restored (backtrack)", rate='propagations')
         self._stats.addCounter('sumDecisionLevel')                         # sum of the decision levels of the conflicts
         self._stats.addAverage("Avg Decision Levels", 'sumDecisionLevel', 'conflicts')
         return
@@ -129,7 +129,7 @@ class DPLL(Solver):
                         break                                      # (if x is true, the clause is satisfied)
                                                                    # (if all are false, a literal is still in the queue:
                                                                    #  the conflict will be found when it is propagated)
-        self._stats.clauseUpdates += len(self._occ[l]) + len(self._occ[notLit(l)])
+        self._stats.clauseVisits += len(self._occ[l]) + len(self._occ[notLit(l)])
         return conflict
 
     def _unpropagateLit(self, l):
