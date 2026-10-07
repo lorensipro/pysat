@@ -1,13 +1,25 @@
-from sato import *
+from cdcl import *
 
-class Watches(SATO):
+class Watches(CDCL):
     ''' CDCL with the 2-watched literals of Chaff (Moskewicz, Madigan, Zhao, Zhang, Malik, 2001).
 
-        As in SATO, only two literals of each clause are watched (here c[0] and c[1]), and a clause
-        is only visited when one of them becomes false. The difference: the watched literals can be
-        anywhere in the clause and move in any direction, and nothing is required from the other
-        literals. Unassigning a literal can never break this: when backtracking, there is nothing
-        to restore (see _unpropagateLit, which is empty).'''
+        Instead of updating counters in all the clauses of a literal (CDCL), only two literals of each
+        clause are watched (here c[0] and c[1]), and a clause is only visited when one of them becomes
+        false. As in SATO (a branch of CDCL, to compare with), but the watched literals can be anywhere
+        in the clause and move in any direction, and nothing is required from the other literals.
+        Unassigning a literal can never break this: when backtracking, there is nothing to restore
+        (see _unpropagateLit, which is empty).'''
+
+    def __init__(self):
+        super().__init__()
+        self._watches = []             # self._watches[l] is the list of the clauses watching l (c[0] or c[1] is l)
+
+        self._stats.addCounter('pointerMoves', "Watch moves", rate='propagations')
+        return
+
+    def _newVar(self):
+        super()._newVar()
+        self._watches += [[], []]
 
     def _attachClause(self, c):
         ''' The clause is watched by its two first literals. It must be called when all the literals

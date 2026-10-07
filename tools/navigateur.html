@@ -36,6 +36,9 @@ nav a { display: block; padding: 6px 10px; border-radius: 8px; color: inherit; t
 nav a:hover { background: var(--accent-soft); }
 nav a.active { background: var(--accent); color: var(--bg); }
 nav a .n { font-weight: 600; }
+.picker { margin: 0 0 12px; display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
+.picker select { font: inherit; padding: 3px 6px; border-radius: 6px; border: 1px solid var(--line); background: var(--panel); color: var(--ink); }
+.picker a { color: var(--accent); }
 nav a .s { display: block; font-size: 12.5px; color: var(--muted); line-height: 1.3; }
 nav a.active .s { color: inherit; opacity: .85; }
 main { padding: 20px 28px 60px; min-width: 0; }
@@ -107,7 +110,10 @@ const T = {
         from: "Héritées de", thisClass: " (cette classe)",
         noMeasure: "Pas encore de mesure pour cette classe dans experiments/results/.",
         measNote: n => "Résultats de <code>experiments/experiments.py</code>. Chaque case : les valeurs du parent mesuré le plus proche, puis celles de " + n + ". En vert, ce qui baisse.",
-        instance: "instance", timeout: "délai dépassé", compared: p => "Comparé à " + p + ".", locale: 'fr-FR' },
+        instance: "instance", timeout: "délai dépassé", compared: p => "Comparé à " + p + ".", locale: 'fr-FR',
+        compareWith: "Comparer avec", parentOpt: p => p + " (le parent)", suggested: "comparaison suggérée :",
+        cmpTitle: (a, b) => "Méthodes différentes entre " + b + " et " + a, identical: k => k + " méthode(s) identique(s)",
+        onlyIn: c => "seulement dans " + c, notParent: "Les options, compteurs et points d'accroche sont donnés par rapport au parent." },
   en: { title: "pysat: the chain of solvers", lead: "Each solver inherits from the previous one and adds a single idea. Choose a class to see what it changes.",
         other: "Français", tree: "Inheritance tree", inherits: "inherits from", tabs: ["What changes", "The whole solver", "Measures"],
         root: "The root: it only knows the formula, the API and the statistics. Its empty methods are the hooks that each solver fills.",
@@ -122,7 +128,10 @@ const T = {
         from: "Inherited from", thisClass: " (this class)",
         noMeasure: "No measure yet for this class in experiments/results/.",
         measNote: n => "Results of <code>experiments/experiments.py</code>. Each cell: the values of the nearest measured parent, then those of " + n + ". In green, what decreases.",
-        instance: "instance", timeout: "timeout", compared: p => "Compared with " + p + ".", locale: 'en-GB' },
+        instance: "instance", timeout: "timeout", compared: p => "Compared with " + p + ".", locale: 'en-GB',
+        compareWith: "Compare with", parentOpt: p => p + " (the parent)", suggested: "suggested comparison:",
+        cmpTitle: (a, b) => "Methods that differ between " + b + " and " + a, identical: k => k + " identical method(s)",
+        onlyIn: c => "only in " + c, notParent: "The options, counters and hooks are given with respect to the parent." },
 };
 const params = new URLSearchParams(location.search);
 let lang = params.get('lang') || (() => { try { return localStorage.getItem('pysat-lang'); } catch (e) { return null; } })() ||
@@ -132,7 +141,49 @@ const L = () => lang === 'fr' ? 0 : 1;
 const t = () => T[lang];
 const byName = Object.fromEntries(NODES.map(n => [n.name, n]));
 const esc = s => String(s).replace(/[&<>"]/g, c => ({'&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;'}[c]));
-let tab = 0, showDoc = false;
+let tab = 0, showDoc = false, other = null;   // other: the class compared with (null: the parent)
+
+function lcsDiff(a, b) {
+  // a, b: lists of [html, isDoc] (old, new) -> [[tag, html, isDoc], ...], with a longest common subsequence
+  const n = a.length, m = b.length, dp = Array.from({length: n + 1}, () => new Int32Array(m + 1));
+  for (let i = n - 1; i >= 0; i--) for (let j = m - 1; j >= 0; j--)
+    dp[i][j] = a[i][0] === b[j][0] ? dp[i + 1][j + 1] + 1 : Math.max(dp[i + 1][j], dp[i][j + 1]);
+  const out = []; let i = 0, j = 0;
+  while (i < n && j < m) {
+    if (a[i][0] === b[j][0]) { out.push([' ', b[j][0], b[j][1]]); i++; j++; }
+    else if (dp[i + 1][j] >= dp[i][j + 1]) { out.push(['-', a[i][0], a[i][1]]); i++; }
+    else { out.push(['+', b[j][0], b[j][1]]); j++; }
+  }
+  while (i < n) { out.push(['-', a[i][0], a[i][1]]); i++; }
+  while (j < m) { out.push(['+', b[j][0], b[j][1]]); j++; }
+  return out;
+}
+const withDoc = m => m.source.map((l, i) => [l, m.doc.includes(i)]);
+
+function viewCompare(n, o) {
+  const mine = Object.fromEntries(n.flat.map(m => [m.name, m])), theirs = Object.fromEntries(o.flat.map(m => [m.name, m]));
+  const names = [...new Set([...n.flat.map(m => m.name), ...o.flat.map(m => m.name)])];
+  let same = 0, h = '';
+  for (const name of names) {
+    const a = mine[name], b = theirs[name];
+    if (a && b && a.origin === b.origin) { same++; continue; }
+    if (a && b) h += '<details open><summary><code>' + name + '</code><span class="from">' + b.origin + '.' + name + ' → ' + a.origin + '.' + name + '</span></summary>' + diff(lcsDiff(withDoc(b), withDoc(a))) + '</details>';
+    else if (a) h += '<details open><summary><code>' + name + '</code><span class="chip etend">' + t().onlyIn(n.name) + '</span><span class="from">' + a.origin + '</span></summary>' + diff(withDoc(a).map(([l, d]) => ['+', l, d])) + '</details>';
+    else h += '<details><summary><code>' + name + '</code><span class="chip remplace">' + t().onlyIn(o.name) + '</span><span class="from">' + b.origin + '</span></summary>' + diff(withDoc(b).map(([l, d]) => ['-', l, d])) + '</details>';
+  }
+  return '<h3>' + t().cmpTitle(n.name, o.name) + '</h3><div class="summary"><span class="chip">' + t().identical(same) + '</span></div>' +
+    '<label class="note"><input type="checkbox" id="showdoc"' + (showDoc ? ' checked' : '') + '> ' + t().showDoc + '</label>' + h +
+    '<p class="note">' + t().notParent + '</p>';
+}
+
+function comparePicker(n) {
+  if (!n.parent) return '';
+  const opts = NODES.filter(x => x.name !== n.name).map(x => '<option value="' + x.name + '"' + ((other || n.parent) === x.name ? ' selected' : '') + '>' +
+    (x.name === n.parent ? t().parentOpt(x.name) : x.name) + '</option>').join('');
+  const sugg = n.compare.filter(c => c !== other).map(c => '<a href="#' + n.name + '~' + c + '">' + n.name + ' / ' + c + '</a>').join(', ');
+  return '<div class="picker"><label>' + t().compareWith + ' <select id="cmp">' + opts + '</select></label>' +
+    (sugg ? ' <span class="note">' + t().suggested + ' ' + sugg + '</span>' : '') + '</div>';
+}
 
 const size = name => 1 + NODES.filter(n => n.parent === name).reduce((s, n) => s + size(n.name), 0);
 function item(n) { return '<li><a href="#' + n.name + '" data-n="' + n.name + '"><span class="n">' + n.name + '</span><span class="s">' + esc(n.summary[L()]) + '</span></a>'; }
@@ -154,9 +205,10 @@ function diff(lines) {
 function fmt(v) { return v == null ? '–' : (typeof v === 'number' && !Number.isInteger(v)) ? v.toFixed(2) : Number(v).toLocaleString(t().locale); }
 
 function viewDiff(n) {
+  if (other && other !== n.parent && byName[other]) return comparePicker(n) + viewCompare(n, byName[other]);
   const red = n.methods.filter(m => m.kind === 'redefinie'), add = n.methods.filter(m => m.kind === 'ajoutee');
   const opts = n.options.filter(o => o.status !== 'same');
-  let h = n.parent ? '' : '<p class="note">' + t().root + '</p>';
+  let h = n.parent ? comparePicker(n) : '<p class="note">' + t().root + '</p>';
   h += '<div class="summary"><span class="chip">' + red.length + ' ' + t().redefined + '</span><span class="chip">' + add.length + ' ' + t().added + '</span>' +
        (opts.length ? '<span class="chip">' + opts.length + ' ' + t().options + '</span>' : '') +
        (n.counters.length ? '<span class="chip">' + n.counters.length + ' ' + t().counters + '</span>' : '') + '</div>';
@@ -210,8 +262,10 @@ function viewMeasures(n) {
   }).join('');
 }
 
-function show(name) {
+function show(hash) {
+  const [name, cmp] = (hash || '').split('~');
   const n = byName[name] || byName['DPLL'];
+  other = cmp && byName[cmp] ? cmp : null;
   document.documentElement.lang = lang;
   document.getElementById('title').textContent = t().title;
   document.getElementById('lead').textContent = t().lead;
@@ -227,6 +281,8 @@ function show(name) {
     '<div class="tabs">' + t().tabs.map((label, i) => '<button data-t="' + i + '" class="' + (i === tab ? 'on' : '') + '">' + label + '</button>').join('') + '</div>' +
     '<div id="view">' + views[tab](n) + '</div>';
   document.querySelectorAll('.tabs button').forEach(b => b.onclick = () => { tab = +b.dataset.t; show(n.name); });
+  const sel = document.getElementById('cmp');
+  if (sel) sel.onchange = () => { location.hash = sel.value === n.parent ? n.name : n.name + '~' + sel.value; };
   const box = document.getElementById('showdoc');
   if (box) box.onchange = () => { showDoc = box.checked; show(n.name); };
   document.title = n.name + ' — ' + t().title;

@@ -36,6 +36,9 @@ SUMMARIES = {
     'DoubleLookahead': ("réfléchir encore plus : un second niveau", "think even more: a second level"),
 }
 
+# Comparisons suggested in the page, besides the parent: class -> classes
+COMPARE = {'Watches': ['SATO'], 'SATO': ['Watches'], 'DoubleLookahead': ['DPLL']}
+
 # The titles of the experiments: (French, English)
 TITLES = {
     'propagation': ("Propager : compteurs, pointeurs tête/queue (SATO), littéraux surveillés (même recherche)",
@@ -221,9 +224,9 @@ def build():
             if c not in classes: continue
             for name, f in c.__dict__.items():
                 if inspect.isfunction(f) and origin(cls, name) is c:
-                    flat.append({'name': name, 'origin': c.__name__, 'source': highlight(sourceOf(f))})
+                    flat.append({'name': name, 'origin': c.__name__, 'source': highlight(sourceOf(f)), 'doc': sorted(docLines(sourceOf(f)))})
         nodes.append({'name': cls.__name__, 'parent': parent.__name__ if parent is not None else None,
-                      'file': 'src/' + cls.__module__ + '.py', 'summary': SUMMARIES.get(cls.__name__, ('', '')), 'doc': inspect.cleandoc(cls.__doc__ or ''),
+                      'file': 'src/' + cls.__module__ + '.py', 'summary': SUMMARIES.get(cls.__name__, ('', '')), 'compare': COMPARE.get(cls.__name__, []), 'doc': inspect.cleandoc(cls.__doc__ or ''),
                       'methods': methods, 'hooks': hooks, 'options': options, 'counters': newCounters,
                       'flat': flat, 'measures': measures(cls, experiments, results)})
     page = open(os.path.join(HERE, 'navigateur.html')).read()

@@ -28,8 +28,8 @@ The same algorithms are also written as a chain of classes, each one inheriting 
 | `Solver` | `src/satsolver.py` | the formula, the API (incremental `addClause`, `solve`), the statistics |
 | `DPLL` | `src/dpll.py` | propagation with counters, decisions, chronological backtracking |
 | `CDCL` | `src/cdcl.py` | first UIP conflict analysis, clause learning, backjumping |
-| `SATO` | `src/sato.py` | head/tail pointers for the propagation |
 | `Watches` | `src/watches.py` | 2-watched literals: nothing to restore when backtracking |
+| `SATO` | `src/sato.py` | (from `CDCL`, to compare with `Watches`) head/tail pointers for the propagation |
 | `VSIDS` | `src/vsids.py` | the VSIDS heuristic, with the heap of Minisat |
 | `Restarts` | `src/restarts.py` | geometric or Luby restarts, phase saving |
 | `Reduce` | `src/reduce.py` | reduction of the learnt clauses, by activity or LBD |
