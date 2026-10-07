@@ -38,6 +38,8 @@ SOLVERS = {
     'geometric':      ('restarts', 'Restarts', {'restarts': 'geometric', 'phaseSaving': False}),
     'phase':          ('restarts', 'Restarts', {'restarts': 'none'}),
     'luby+phase':     ('restarts', 'Restarts', {}),
+    'reduce-activity': ('reduce', 'Reduce', {'reduce': 'activity'}),
+    'reduce-lbd':     ('reduce', 'Reduce', {}),
 }
 
 # Random 3-SAT at the threshold (ratio 4.26), UNSAT: (variables, seed) for src/genRandom.py
@@ -72,6 +74,11 @@ EXPERIMENTS = {
                  ['watches', 'vsids', 'vsids-occ', 'phase', 'geometric', 'luby', 'luby+phase'],
                  lambda: bmc('barrel5', 'barrel6', 'longmult6', 'queueinvar14') + recent(*FEASIBLE_RECENT) + rnd()[-2:],
                  ['time', 'conflicts', 'decisions', 'restarts']),
+    'reduce': ("Reduction of the learnt clauses: none, by activity (Minisat), by LBD (Glucose)",
+               ['luby+phase', 'reduce-activity', 'reduce-lbd'],
+               lambda: bmc('barrel6', 'barrel7', 'longmult6', 'longmult7', 'queueinvar16') + recent('ferry8_ks99i.renamed-as.sat05-4005.cnf.xz',
+                   'Break_unsat_06_07.xml.cnf.xz', 'x9-06099.sat.sanitized.cnf.xz', '3col120_5_2.shuffled.cnf.xz') + rnd()[-2:],
+               ['time', 'conflicts', 'removedClauses', 'propagations', 'clauseVisits']),
     'recent': ("Recent benchmarks (SAT competitions 2020-2025, from GBD)",
                ['watches', 'vsids', 'luby+phase'],
                lambda: recent(),

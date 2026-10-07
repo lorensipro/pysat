@@ -205,6 +205,7 @@ class DPLL(Solver):
                 self._learn(learnt)
                 self._uncheckedEnqueue(learnt[0], learnt)                 # The learnt clause is unit: its first literal is forced
             else:                                                          # No conflict
+                self._manageLearnts()                                      # Maybe forget some learnt clauses
                 if self._restartNeeded():                                  # Restart: back to level 0 (the learnt clauses are kept)
                     self._cancelUntil(0)
                     return self._cst.lit_Undef
@@ -221,6 +222,10 @@ class DPLL(Solver):
         if self._config.heuristic == 'balanced':
             return pos * neg * 1024 + pos + neg                    # (as in Satz: the product favours the balanced variables)
         return pos + neg
+
+    def _manageLearnts(self):
+        ''' Called at each node, before the decision: may remove learnt clauses. DPLL: nothing to do.'''
+        return
 
     def _restartNeeded(self):
         ''' Called at each node, before the decision: returns True to restart. DPLL: never.'''

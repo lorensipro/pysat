@@ -38,6 +38,7 @@ class CDCL(DPLL):
         index = len(self._trail) - 1
         while True:
             if p is not None: self._stats.resolutions += 1
+            self._clauseInAnalysis(c)
             for q in c:
                 v = litToVar(q)
                 if p is not None and v == litToVar(p): continue    # (the literal propagated by this reason)
@@ -67,6 +68,10 @@ class CDCL(DPLL):
         self._stats.sumLearntSize += len(learnt)
         self._stats.sumBackjump += self._decisionLevel() - backtrackLevel
         return Clause(learnt, learnt=True), backtrackLevel
+
+    def _clauseInAnalysis(self, c):
+        ''' Called for each clause used during the conflict analysis (the conflict, then the reasons) '''
+        return
 
     def _seenInAnalysis(self, v):
         ''' Called for each variable met during the conflict analysis (used by the heuristics) '''
