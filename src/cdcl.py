@@ -31,6 +31,7 @@ class CDCL(DPLL):
             Returns the learnt clause (the negation of the UIP first, then the literal of the highest
             level in position 1) and the level where to backtrack: the second highest level of the clause.'''
         seen = self._seen
+        analyzed = []                  # The variables met during the analysis (for the heuristics)
         learnt = [None]                # We leave a room for the asserting literal in place 0
         pathC = 0                      # Number of literals of the current level still to remove
         p = None                       # The literal of the trail whose reason is c (None for the conflict itself)
@@ -44,7 +45,7 @@ class CDCL(DPLL):
                 if p is not None and v == litToVar(p): continue    # (the literal propagated by this reason)
                 if not seen[v] and self._level[v] > 0:             # (literals of level 0 are false forever: useless)
                     seen[v] = True
-                    self._seenInAnalysis(v)
+                    analyzed.append(v)
                     if self._level[v] == self._decisionLevel():
                         pathC += 1                                 # one more literal of the current level, to remove
                     else:
@@ -69,6 +70,7 @@ class CDCL(DPLL):
             backtrackLevel = self._level[litToVar(learnt[1])]
         self._stats.sumLearntSize += len(learnt)
         self._stats.sumBackjump += self._decisionLevel() - backtrackLevel
+        self._bumpVariables(analyzed)
         return Clause(learnt, learnt=True), backtrackLevel
 
     def _minimize(self, learnt):
@@ -80,8 +82,9 @@ class CDCL(DPLL):
         ''' Called for each clause used during the conflict analysis (the conflict, then the reasons) '''
         return
 
-    def _seenInAnalysis(self, v):
-        ''' Called for each variable met during the conflict analysis (used by the heuristics) '''
+    def _bumpVariables(self, analyzed):
+        ''' Called once at the end of each conflict analysis, with all the variables met (in the order they
+            were met): the heuristics give them more importance. CDCL: nothing to do (static heuristic).'''
         return
 
     def _learn(self, c):

@@ -39,20 +39,17 @@ class VSIDS(Watches):
                 if self._varHeap.inHeap(v): self._varHeap.decrease(v)
         return super()._solve()
 
-    def _seenInAnalysis(self, v):
-        ''' Bumps the variable met during the conflict analysis. Once in a while, all the
+    def _bumpVariables(self, analyzed):
+        ''' Bumps the variables met during the conflict analysis. Once in a while, all the
             activities are rescaled (to stay in the range of floats).'''
-        self._activity[v] += self._varInc
-        if self._activity[v] > 1e100:                              # rescale the activities
-            self._stats.rescalings += 1
-            for i in range(self._nbvars): self._activity[i] *= 1e-100
-            self._varInc *= 1e-100
-        if self._varHeap.inHeap(v): self._varHeap.decrease(v)      # Its activity grew: it goes up in the heap
-
-    def _analyze(self, confl):
-        result = super()._analyze(confl)
+        for v in analyzed:
+            self._activity[v] += self._varInc
+            if self._activity[v] > 1e100:                          # rescale the activities
+                self._stats.rescalings += 1
+                for i in range(self._nbvars): self._activity[i] *= 1e-100
+                self._varInc *= 1e-100
+            if self._varHeap.inHeap(v): self._varHeap.decrease(v)  # Its activity grew: it goes up in the heap
         self._varInc /= self._config.varDecay                      # The next bumps will count more
-        return result
 
     def _pickBranchLit(self):
         ''' Returns the literal on which we must branch: the unassigned variable of highest activity.

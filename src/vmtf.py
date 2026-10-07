@@ -23,7 +23,6 @@ class VMTF(Watches):
         self._last = None
         self._searchPointer = None     # All the variables after this one in the queue are assigned
         self._time = 0                 # The last stamp given
-        self._analyzed = []            # The variables met during the current conflict analysis
 
         self._stats.addCounter('moveToFront', "VMTF moves to front", rate='conflicts')
         return
@@ -53,19 +52,14 @@ class VMTF(Watches):
         self._time += 1
         self._stamp[v] = self._time
 
-    def _seenInAnalysis(self, v):
-        self._analyzed.append(v)
-
-    def _analyze(self, confl):
-        result = super()._analyze(confl)
-        self._analyzed.sort(key = lambda v: self._stamp[v])          # Keep their relative order
-        for v in self._analyzed:
+    def _bumpVariables(self, analyzed):
+        ''' The variables met during the conflict analysis move to the end of the queue, in the order of
+            their previous positions (they are all assigned: the search pointer stays valid)'''
+        for v in sorted(analyzed, key = lambda v: self._stamp[v]):
             if v != self._last:
                 self._varDequeue(v)
-                self._varEnqueue(v)                                     # Move to front (the end of the queue)
+                self._varEnqueue(v)                                  # Move to front (the end of the queue)
                 self._stats.moveToFront += 1
-        self._analyzed.clear()
-        return result                                                # (they are all assigned: the search pointer stays valid)
 
     def _pickBranchLit(self):
         ''' The last unassigned variable of the queue, searched backwards from the pointer '''
