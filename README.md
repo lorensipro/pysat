@@ -80,6 +80,44 @@ From the root of the repository:
 python -m unittest discover tests
 ```
 
-Both solvers are checked against a brute-force enumeration on random formulas, and the models are verified.
+All the solvers are checked against a brute-force enumeration on random formulas, the models are verified, and the learnt clauses are checked to be consequences of the formula.
+
+### See also ###
+
+pysat is meant to be read next to other works that explain SAT solvers piece by piece. It does not replace them; it tries to be complementary.
+
+**[SATCH](https://github.com/arminbiere/satch), by Armin Biere**, is the reference we would recommend first. It is a SAT solver written from scratch in C, whose main purpose is to provide a simple and clean code base for explaining and experimenting with SAT solvers, while still featuring most of the implementation techniques of a state-of-the-art solver, and serving as a gentle introduction to CaDiCaL and Kissat. Every feature can be switched off at compile time (`./configure --no-learn`, `--no-watches`, `--no-cdcl`...), with explicit dependencies and incompatibilities between features: a remarkably clean way to see what each ingredient brings, in a solver that is really efficient.
+
+pysat takes the same question from the other side, and with other means:
+
+| | SATCH | pysat |
+|---|---|---|
+| Language | C, efficient | Python, slow but short and readable |
+| Features | **removed** at compile time from a complete solver | **added** one by one, each class inheriting from the previous one |
+| What a student reads | one solver, with its feature switches | a sequence of small diffs (see the [source browser](https://lorensipro.github.io/pysat/)) |
+| Measures | the solver itself, on real benchmarks | machine independent counters (clauses visited, clauses restored...) and the course experiments |
+| Scope | state of the art: rephasing, stable/focused modes, VMTF, tiers, inprocessing... | the path from DPLL to a Minisat/Glucose-like CDCL, plus lookahead (and soon local search) |
+
+The ingredients, side by side:
+
+| Ingredient | SATCH option | pysat |
+|---|---|---|
+| pure DPLL, no learning | `--no-cdcl`, `--no-learn` | `DPLL` |
+| counters instead of watches | `--no-watches` | `DPLL`, `CDCL` (and `SATO`, head/tail pointers) |
+| watched literals, blocking literals | default, `--no-block` | `Watches` (blocking literals: measured, not in the chain yet) |
+| VSIDS, VMTF | `--no-vsids`, `--no-vmtf` | `VSIDS` (no VMTF yet) |
+| restarts | moving averages, focused/stable modes | `Restarts`: geometric, Luby |
+| phase saving, target and best phases, rephasing | `--no-save`, `--no-target`, `--no-best`, `--no-rephase` | `Restarts` (phase saving only) |
+| reduction of the learnt clauses | glue tiers, `--no-reduce`, `--no-glue`, `--no-tier1`, `--no-tier2` | `Reduce`: activity or LBD (glue clauses kept) |
+| minimization, shrinking | `--no-minimize`, `--no-shrink` | `Minimize`: local or recursive |
+| chronological backtracking, trail reuse | `--no-chrono`, `--no-reuse` | not yet |
+| preprocessing and inprocessing | elimination, subsumption, strengthening, vivification | not yet |
+| lookahead, failed literals | | `Lookahead`, `DoubleLookahead` |
+
+Also worth reading:
+
+* **Donald Knuth**, *The Art of Computer Programming*, vol. 4B, section 7.2.2.2, and [his programs](https://www-cs-faculty.stanford.edu/~knuth/programs.html) SAT0 to SAT13: a basic backtracking solver, WalkSAT (SAT8), survey propagation (SAT9), Davis-Putnam (SAT10), lookahead (SAT11), a preprocessor (SAT12) and CDCL (SAT13), each one measured in "mems".
+* **A. Biere, M. Fleury, N. Froleyks, M. Heule**, [The SAT Museum](https://ceur-ws.org/Vol-3545/paper6.pdf) (Pragmatics of SAT 2023): the historical solvers run on the same benchmarks, to measure the progress of each generation.
+* **A. Biere**, [Tutorial on Modern SAT Solving](https://cca.informatik.uni-freiburg.de/biere/talks/Biere-LSSS19-talk.pdf) (EPFL, 2019) and [Modern CDCL SAT Solvers](https://fmv.jku.at/biere/talks/Biere-SATSMT12.pdf) (SAT/SMT summer school, 2012).
 
 Good luck!

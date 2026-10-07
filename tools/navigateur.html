@@ -39,6 +39,10 @@ nav a .n { font-weight: 600; }
 .picker { margin: 0 0 12px; display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
 .picker select { font: inherit; padding: 3px 6px; border-radius: 6px; border: 1px solid var(--line); background: var(--panel); color: var(--ink); }
 .picker a { color: var(--accent); }
+.seealso { margin: 18px 6px 0; padding-top: 12px; border-top: 1px solid var(--line); font-size: 13px; color: var(--muted); }
+.seealso h4 { margin: 0 0 6px; font-size: 13.5px; color: var(--ink); }
+.seealso p { margin: 0 0 8px; }
+.seealso a { color: var(--accent); }
 nav a .s { display: block; font-size: 12.5px; color: var(--muted); line-height: 1.3; }
 nav a.active .s { color: inherit; opacity: .85; }
 main { padding: 20px 28px 60px; min-width: 0; }
@@ -113,7 +117,8 @@ const T = {
         instance: "instance", timeout: "délai dépassé", compared: p => "Comparé à " + p + ".", locale: 'fr-FR',
         compareWith: "Comparer avec", parentOpt: p => p + " (le parent)", suggested: "comparaison suggérée :",
         cmpTitle: (a, b) => "Méthodes différentes entre " + b + " et " + a, identical: k => k + " méthode(s) identique(s)",
-        onlyIn: c => "seulement dans " + c, notParent: "Les options, compteurs et points d'accroche sont donnés par rapport au parent." },
+        onlyIn: c => "seulement dans " + c, notParent: "Les options, compteurs et points d'accroche sont donnés par rapport au parent.",
+        seeAlso: '<h4>Voir aussi</h4><p><a href="https://github.com/arminbiere/satch">SATCH</a>, d\'Armin Biere : un solveur écrit en C pour expliquer et expérimenter, aussi simple que possible tout en ayant l\'essentiel des techniques d\'un solveur moderne. Chaque ingrédient s\'y <b>retire</b> à la compilation (<code>--no-learn</code>, <code>--no-watches</code>, <code>--no-cdcl</code>…). pysat se veut son complément : les ingrédients y sont <b>ajoutés</b> un par un, en Python, avec les diffs et les compteurs.</p><p><a href="https://www-cs-faculty.stanford.edu/~knuth/programs.html">Les programmes SAT0 à SAT13</a> de Donald Knuth (TAOCP 7.2.2.2) et <a href="https://ceur-ws.org/Vol-3545/paper6.pdf">le SAT Museum</a> (Biere, Fleury, Froleyks, Heule 2023).</p>' },
   en: { title: "pysat: the chain of solvers", lead: "Each solver inherits from the previous one and adds a single idea. Choose a class to see what it changes.",
         other: "Français", tree: "Inheritance tree", inherits: "inherits from", tabs: ["What changes", "The whole solver", "Measures"],
         root: "The root: it only knows the formula, the API and the statistics. Its empty methods are the hooks that each solver fills.",
@@ -131,7 +136,8 @@ const T = {
         instance: "instance", timeout: "timeout", compared: p => "Compared with " + p + ".", locale: 'en-GB',
         compareWith: "Compare with", parentOpt: p => p + " (the parent)", suggested: "suggested comparison:",
         cmpTitle: (a, b) => "Methods that differ between " + b + " and " + a, identical: k => k + " identical method(s)",
-        onlyIn: c => "only in " + c, notParent: "The options, counters and hooks are given with respect to the parent." },
+        onlyIn: c => "only in " + c, notParent: "The options, counters and hooks are given with respect to the parent.",
+        seeAlso: '<h4>See also</h4><p><a href="https://github.com/arminbiere/satch">SATCH</a>, by Armin Biere: a solver written in C to explain and experiment, as simple as possible while featuring the essential techniques of a modern solver. Each ingredient can be <b>removed</b> at compile time (<code>--no-learn</code>, <code>--no-watches</code>, <code>--no-cdcl</code>…). pysat is meant as its complement: the ingredients are <b>added</b> one by one, in Python, with the diffs and the counters.</p><p><a href="https://www-cs-faculty.stanford.edu/~knuth/programs.html">The programs SAT0 to SAT13</a> of Donald Knuth (TAOCP 7.2.2.2) and <a href="https://ceur-ws.org/Vol-3545/paper6.pdf">the SAT Museum</a> (Biere, Fleury, Froleyks, Heule 2023).</p>' },
 };
 const params = new URLSearchParams(location.search);
 let lang = params.get('lang') || (() => { try { return localStorage.getItem('pysat-lang'); } catch (e) { return null; } })() ||
@@ -272,7 +278,7 @@ function show(hash) {
   document.getElementById('lang').textContent = t().other;
   const nav = document.getElementById('tree');
   nav.setAttribute('aria-label', t().tree);
-  nav.innerHTML = '<ul class="main">' + chain(NODES.find(x => !x.parent)) + '</ul>';
+  nav.innerHTML = '<ul class="main">' + chain(NODES.find(x => !x.parent)) + '</ul><div class="seealso">' + t().seeAlso + '</div>';
   nav.querySelectorAll('a').forEach(a => a.classList.toggle('active', a.dataset.n === n.name));
   const views = [viewDiff, viewFlat, viewMeasures];
   document.getElementById('main').innerHTML =
