@@ -58,7 +58,9 @@ class CDCL(DPLL):
             c = self._reason[litToVar(p)]                          # c propagated p: all its other literals are false
 
         learnt[0] = notLit(p)                                      # The asserting literal
-        for l in learnt[1:]: seen[litToVar(l)] = False             # remove the remaining seen tags
+        toClear = learnt[1:]
+        learnt = self._minimize(learnt)                            # (the literals of learnt[1:] are still seen)
+        for l in toClear: seen[litToVar(l)] = False                # remove the remaining seen tags
 
         backtrackLevel = 0
         if len(learnt) > 1:                                        # The literal of the highest level goes in position 1
@@ -68,6 +70,11 @@ class CDCL(DPLL):
         self._stats.sumLearntSize += len(learnt)
         self._stats.sumBackjump += self._decisionLevel() - backtrackLevel
         return Clause(learnt, learnt=True), backtrackLevel
+
+    def _minimize(self, learnt):
+        ''' Returns the learnt clause with its redundant literals removed (when they are implied by the
+            others). The variables of learnt[1:] are marked as seen. CDCL: no minimization.'''
+        return learnt
 
     def _clauseInAnalysis(self, c):
         ''' Called for each clause used during the conflict analysis (the conflict, then the reasons) '''
