@@ -19,7 +19,7 @@ sys.path.insert(0, SRC)
 # The classes of the chain, in reading order: (module, class)
 CHAIN = [('satsolver', 'Solver'), ('dpll', 'DPLL'), ('cdcl', 'CDCL'), ('sato', 'SATO'), ('watches', 'Watches'),
          ('vsids', 'VSIDS'), ('restarts', 'Restarts'), ('reduce', 'Reduce'), ('minimize', 'Minimize'),
-         ('lookahead', 'Lookahead'), ('lookahead', 'DoubleLookahead')]
+         ('vmtf', 'VMTF'), ('vmtf', 'MinimizeVMTF'), ('lookahead', 'Lookahead'), ('lookahead', 'DoubleLookahead')]
 
 # One line per class, for the tree of the page: (French, English)
 SUMMARIES = {
@@ -32,12 +32,14 @@ SUMMARIES = {
     'Restarts': ("redémarrer et garder les phases (Minisat 2.2)", "restart and keep the phases (Minisat 2.2)"),
     'Reduce': ("oublier des clauses apprises, par LBD (Glucose, 2009)", "forget learnt clauses, by LBD (Glucose, 2009)"),
     'Minimize': ("raccourcir les clauses apprises (Minisat 2)", "shorten the learnt clauses (Minisat 2)"),
+    'VMTF': ("choisir par une file : les variables des conflits passent en tête (2004)", "choose with a queue: the variables of the conflicts move to the front (2004)"),
+    'MinimizeVMTF': ("toute la chaîne, avec VMTF au lieu de VSIDS (héritage multiple)", "the whole chain, with VMTF instead of VSIDS (multiple inheritance)"),
     'Lookahead': ("réfléchir avant de choisir : essayer chaque variable", "think before choosing: try each variable"),
     'DoubleLookahead': ("réfléchir encore plus : un second niveau", "think even more: a second level"),
 }
 
 # Comparisons suggested in the page, besides the parent: class -> classes
-COMPARE = {'Watches': ['SATO'], 'SATO': ['Watches'], 'DoubleLookahead': ['DPLL']}
+COMPARE = {'Watches': ['SATO'], 'SATO': ['Watches'], 'DoubleLookahead': ['DPLL'], 'VSIDS': ['VMTF'], 'VMTF': ['VSIDS'], 'MinimizeVMTF': ['Minimize']}
 
 # The titles of the experiments: (French, English)
 TITLES = {
@@ -50,6 +52,8 @@ TITLES = {
                "Reduction of the learnt clauses: none, by activity (Minisat), by LBD (Glucose)"),
     'minimize': ("Minimisation des clauses apprises : aucune, locale, récursive (Minisat 2)",
                  "Minimization of the learnt clauses: none, local, recursive (Minisat 2)"),
+    'vmtf': ("VSIDS ou VMTF, seuls et avec toute la chaîne (redémarrages, phases, LBD, minimisation)",
+             "VSIDS or VMTF, alone and with the whole chain (restarts, phases, LBD, minimization)"),
     'recent': ("Instances récentes (compétitions SAT 2020-2025, base GBD)", "Recent instances (SAT competitions 2020-2025, GBD)"),
 }
 
@@ -155,7 +159,8 @@ def measures(cls, experiments, results):
         title, solvers = TITLES.get(exp, (experiments.EXPERIMENTS[exp][0],) * 2), experiments.EXPERIMENTS[exp][1]
         if me not in solvers: continue
         ref = None
-        for c in cls.__mro__[1:]:                                  # The nearest ancestor measured in this experiment
+        suggested = [c for c in cls.__mro__[1:] if c.__name__ in COMPARE.get(cls.__name__, [])]
+        for c in suggested + list(cls.__mro__[1:]):                # The suggested class, or the nearest ancestor, measured here
             n = defaultName(c)
             if n in solvers: ref = (c.__name__, n); break
         names = ([ref[1]] if ref else []) + [me]
@@ -226,6 +231,7 @@ def build():
                 if inspect.isfunction(f) and origin(cls, name) is c:
                     flat.append({'name': name, 'origin': c.__name__, 'source': highlight(sourceOf(f)), 'doc': sorted(docLines(sourceOf(f)))})
         nodes.append({'name': cls.__name__, 'parent': parent.__name__ if parent is not None else None,
+                      'parents': [b.__name__ for b in cls.__bases__ if b in classes],
                       'file': 'src/' + cls.__module__ + '.py', 'summary': SUMMARIES.get(cls.__name__, ('', '')), 'compare': COMPARE.get(cls.__name__, []), 'doc': inspect.cleandoc(cls.__doc__ or ''),
                       'methods': methods, 'hooks': hooks, 'options': options, 'counters': newCounters,
                       'flat': flat, 'measures': measures(cls, experiments, results)})

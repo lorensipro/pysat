@@ -114,7 +114,7 @@ const T = {
         from: "Héritées de", thisClass: " (cette classe)",
         noMeasure: "Pas encore de mesure pour cette classe dans experiments/results/.",
         measNote: n => "Résultats de <code>experiments/experiments.py</code>. Chaque case : les valeurs du parent mesuré le plus proche, puis celles de " + n + ". En vert, ce qui baisse.",
-        instance: "instance", timeout: "délai dépassé", compared: p => "Comparé à " + p + ".", locale: 'fr-FR',
+        and: " et ", instance: "instance", timeout: "délai dépassé", compared: p => "Comparé à " + p + ".", locale: 'fr-FR',
         compareWith: "Comparer avec", parentOpt: p => p + " (le parent)", suggested: "comparaison suggérée :",
         cmpTitle: (a, b) => "Méthodes différentes entre " + b + " et " + a, identical: k => k + " méthode(s) identique(s)",
         onlyIn: c => "seulement dans " + c, notParent: "Les options, compteurs et points d'accroche sont donnés par rapport au parent.",
@@ -133,7 +133,7 @@ const T = {
         from: "Inherited from", thisClass: " (this class)",
         noMeasure: "No measure yet for this class in experiments/results/.",
         measNote: n => "Results of <code>experiments/experiments.py</code>. Each cell: the values of the nearest measured parent, then those of " + n + ". In green, what decreases.",
-        instance: "instance", timeout: "timeout", compared: p => "Compared with " + p + ".", locale: 'en-GB',
+        and: " and ", instance: "instance", timeout: "timeout", compared: p => "Compared with " + p + ".", locale: 'en-GB',
         compareWith: "Compare with", parentOpt: p => p + " (the parent)", suggested: "suggested comparison:",
         cmpTitle: (a, b) => "Methods that differ between " + b + " and " + a, identical: k => k + " identical method(s)",
         onlyIn: c => "only in " + c, notParent: "The options, counters and hooks are given with respect to the parent.",
@@ -282,7 +282,7 @@ function show(hash) {
   nav.querySelectorAll('a').forEach(a => a.classList.toggle('active', a.dataset.n === n.name));
   const views = [viewDiff, viewFlat, viewMeasures];
   document.getElementById('main').innerHTML =
-    '<h2>' + n.name + '</h2><div class="sub">' + (n.parent ? t().inherits + ' <a href="#' + n.parent + '">' + n.parent + '</a> · ' : '') + '<code>' + n.file + '</code></div>' +
+    '<h2>' + n.name + '</h2><div class="sub">' + (n.parent ? t().inherits + ' ' + n.parents.map(p => '<a href="#' + p + '">' + p + '</a>').join(t().and) + ' · ' : '') + '<code>' + n.file + '</code></div>' +
     '<div class="doc">' + n.doc.split('\n\n').map(p => esc(p.replace(/\n\s*/g, ' '))).join('\n\n') + '</div>' +
     '<div class="tabs">' + t().tabs.map((label, i) => '<button data-t="' + i + '" class="' + (i === tab ? 'on' : '') + '">' + label + '</button>').join('') + '</div>' +
     '<div id="view">' + views[tab](n) + '</div>';
