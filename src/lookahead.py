@@ -64,7 +64,7 @@ class Lookahead(DPLL):
 
     def _pickBranchLit(self):
         if self._bestVar is None: return super()._pickBranchLit()  # (no candidate: the static order)
-        return varToLit(self._bestVar, 0 if self._config.default_value else 1)
+        return self._decisionLit(self._bestVar)
 
 
 class DoubleLookahead(Lookahead):

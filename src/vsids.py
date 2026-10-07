@@ -16,6 +16,7 @@ class VSIDS(Watches):
     class Configuration(Watches.Configuration):
         ''' Contains all the configuration variables for the solver '''
         varDecay = 0.95                # activities decay (Minisat value)
+        initialActivity = 'zero'       # 'zero' (Minisat) or 'occurrences' (the static order breaks the first ties)
 
     def __init__(self):
         super().__init__()
@@ -30,6 +31,13 @@ class VSIDS(Watches):
         super()._newVar()
         self._activity.append(0.0)
         self._varHeap.insert(self._nbvars - 1)
+
+    def _solve(self):
+        if self._config.initialActivity == 'occurrences' and self._stats.conflicts == 0:
+            for v in range(self._nbvars):                          # Small values: the first bumps will dominate them
+                self._activity[v] = 1e-3 * (len(self._occ[varToLit(v)]) + len(self._occ[varToLit(v, 1)]))
+                if self._varHeap.inHeap(v): self._varHeap.decrease(v)
+        return super()._solve()
 
     def _seenInAnalysis(self, v):
         ''' Bumps the variable met during the conflict analysis. Once in a while, all the
@@ -52,7 +60,7 @@ class VSIDS(Watches):
         while len(self._varHeap) > 0:
             v = self._varHeap.removeMin()
             if self._litValues[varToLit(v)] == self._cst.lit_Undef:
-                return varToLit(v, 0 if self._config.default_value else 1)
+                return self._decisionLit(v)
         return None
 
     def _cancelUntil(self, level = 0):

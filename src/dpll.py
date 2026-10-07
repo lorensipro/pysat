@@ -154,12 +154,16 @@ class DPLL(Solver):
         del self._trailLevels[level:]                              # shrinks the traillevels
         self._trailIndexToPropagate = start
 
+    def _decisionLit(self, v):
+        ''' The literal of the decision on v: the default value (redefined by the phase saving) '''
+        return varToLit(v, 0 if self._config.default_value else 1)
+
     def _pickBranchLit(self):
         ''' Returns the literal on which we must branch. None if no more
         literals are unassigned. (TODO: this linear scan will be replaced by a heap)'''
         for v in self._order:
             if self._litValues[varToLit(v)] == self._cst.lit_Undef:
-                return varToLit(v, 0 if self._config.default_value else 1)
+                return self._decisionLit(v)
         return None
 
     def _analyze(self, confl):
@@ -201,6 +205,9 @@ class DPLL(Solver):
                 self._learn(learnt)
                 self._uncheckedEnqueue(learnt[0], learnt)                 # The learnt clause is unit: its first literal is forced
             else:                                                          # No conflict
+                if self._restartNeeded():                                  # Restart: back to level 0 (the learnt clauses are kept)
+                    self._cancelUntil(0)
+                    return self._cst.lit_Undef
                 if self._simplifyNode(): continue                          # Some literals were fixed: propagate them first
                 l = self._pickBranchLit()                                  # Picks a new variable to branch on
                 if l is None: return self._cst.lit_True                    # All variables are assigned and no conflict: SAT was proven
@@ -215,6 +222,10 @@ class DPLL(Solver):
             return pos * neg * 1024 + pos + neg                    # (as in Satz: the product favours the balanced variables)
         return pos + neg
 
+    def _restartNeeded(self):
+        ''' Called at each node, before the decision: returns True to restart. DPLL: never.'''
+        return False
+
     def _simplifyNode(self):
         ''' Called at each node of the search, before the decision (everything is propagated).
             Can fix some literals at the current level and return True (they will be propagated before
@@ -223,7 +234,9 @@ class DPLL(Solver):
 
     def _solve(self):
         self._order = sorted(range(self._nbvars), key = lambda v: -self._staticScore(v)) # Static heuristic: the best scores first
-        status = self._search()
+        status = self._cst.lit_Undef
+        while status == self._cst.lit_Undef:                       # _search returns lit_Undef at each restart
+            status = self._search()
         if status == self._cst.lit_True:                           # We copy the solution before cancelling the decisions
             self.finalModel = [v+1 if self._litValues[varToLit(v)] == self._cst.lit_True else -v-1 for v in range(self._nbvars)]
         self._cancelUntil(0)                                       # Back to level 0: clauses can be added again
