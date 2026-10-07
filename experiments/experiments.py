@@ -5,6 +5,8 @@
         python experiments.py heuristics restarts   # only some of them
         python experiments.py --list                # the available experiments
         options: --timeout 60 (seconds per run)  --python python3 (interpreter used for the runs)
+                 --jobs 4 (number of runs in parallel; default 1. Parallel runs share the memory and the
+                 caches, and some cores may be slower: the times are less precise, the counters are the same)
 
     Each run is a separate process (python -O, no assertions), killed after the timeout.
     The results are printed as Markdown tables and saved in experiments/results/<name>.md and .jsonl.
@@ -13,6 +15,7 @@
 '''
 
 import os, sys, json, time, subprocess, importlib
+from concurrent.futures import ThreadPoolExecutor
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 SRC = os.path.join(HERE, '..', 'src')
@@ -102,25 +105,32 @@ def runOne(solverName, path):
     stats.update(time=round(time.time() - t, 3), result={0: 'UNSAT', 1: 'SAT'}.get(result, 'UNKNOWN'))
     print(json.dumps(stats))
 
-def run(name, python, timeout):
+def runProcess(python, timeout, solverName, path):
+    ''' Runs one solver on one instance in a separate process. Returns the statistics (a dict) '''
+    try:
+        r = subprocess.run([python, '-O', os.path.abspath(__file__), '--one', solverName, path],
+                           capture_output=True, text=True, timeout=timeout)
+        d = json.loads(r.stdout)
+    except subprocess.TimeoutExpired:
+        d = dict(result='TIMEOUT')
+    d.update(instance=os.path.basename(path), solver=solverName)
+    return d
+
+def run(name, python, timeout, jobs):
     title, solvers, instances, columns = EXPERIMENTS[name]
     os.makedirs(RESULTS, exist_ok=True)
-    lines = ["## " + title, "", "Timeout: {t:d}s per run. Columns: {c:s}.".format(t=timeout, c=", ".join(columns)), ""]
+    lines = ["## " + title, "", "Timeout: {t:d}s per run, {j:d} run(s) in parallel. Columns: {c:s}.".format(t=timeout, j=jobs, c=", ".join(columns)), ""]
     lines += ["| instance | " + " | ".join(solvers) + " |", "|---" * (len(solvers) + 1) + "|"]
     print("\n".join(lines), flush=True)
-    with open(os.path.join(RESULTS, name + '.jsonl'), 'w') as out:
-        for path in instances():
+    paths = instances()
+    with ThreadPoolExecutor(max_workers=jobs) as pool, open(os.path.join(RESULTS, name + '.jsonl'), 'w') as out:
+        futures = {(path, s): pool.submit(runProcess, python, timeout, s, path) for path in paths for s in solvers}
+        for path in paths:                                     # The lines are printed in order, as soon as they are complete
             cells = []
             for s in solvers:
-                try:
-                    r = subprocess.run([python, '-O', os.path.abspath(__file__), '--one', s, path],
-                                       capture_output=True, text=True, timeout=timeout)
-                    d = json.loads(r.stdout)
-                    cells.append(" / ".join(str(d.get(c, '-')) for c in columns))
-                except subprocess.TimeoutExpired:
-                    d = dict(result='TIMEOUT'); cells.append('>' + str(timeout) + 's')
-                d.update(instance=os.path.basename(path), solver=s)
+                d = futures[(path, s)].result()
                 out.write(json.dumps(d) + "\n"); out.flush()
+                cells.append('>' + str(timeout) + 's' if d['result'] == 'TIMEOUT' else " / ".join(str(d.get(c, '-')) for c in columns))
             line = "| " + os.path.basename(path) + " | " + " | ".join(cells) + " |"
             print(line, flush=True); lines.append(line)
     open(os.path.join(RESULTS, name + '.md'), 'w').write("\n".join(lines) + "\n")
@@ -134,12 +144,13 @@ if __name__ == "__main__":
     if '--list' in args:
         for name, e in EXPERIMENTS.items(): print("{n:12s} {t:s}".format(n=name, t=e[0]))
         sys.exit(0)
-    timeout = 60; python = sys.executable; names = []
+    timeout = 60; python = sys.executable; jobs = 1; names = []
     i = 0
     while i < len(args):
         if args[i] == '--timeout': timeout = int(args[i+1]); i += 2
         elif args[i] == '--python': python = args[i+1]; i += 2
+        elif args[i] == '--jobs': jobs = int(args[i+1]); i += 2
         else: names.append(args[i]); i += 1
     for name in names or list(EXPERIMENTS):
-        run(name, python, timeout)
+        run(name, python, timeout, jobs)
         print()
