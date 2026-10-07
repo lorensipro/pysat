@@ -43,6 +43,7 @@ class CDCL(DPLL):
                 if p is not None and v == litToVar(p): continue    # (the literal propagated by this reason)
                 if not seen[v] and self._level[v] > 0:             # (literals of level 0 are false forever: useless)
                     seen[v] = True
+                    self._seenInAnalysis(v)
                     if self._level[v] == self._decisionLevel():
                         pathC += 1                                 # one more literal of the current level, to remove
                     else:
@@ -66,6 +67,10 @@ class CDCL(DPLL):
         self._stats.sumLearntSize += len(learnt)
         self._stats.sumBackjump += self._decisionLevel() - backtrackLevel
         return Clause(learnt, learnt=True), backtrackLevel
+
+    def _seenInAnalysis(self, v):
+        ''' Called for each variable met during the conflict analysis (used by the heuristics) '''
+        return
 
     def _learn(self, c):
         ''' The learnt clause is kept, and attached for the propagation '''
