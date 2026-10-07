@@ -1,0 +1,243 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>pysat : la chaîne des solveurs / the chain of solvers</title>
+<meta name="description" content="Navigateur des sources de pysat : chaque solveur hérite du précédent et n'ajoute qu'une idée. Cliquez sur une classe pour voir ce qu'elle change.">
+<style>
+:root {
+  --bg: #fbfaf7; --panel: #ffffff; --ink: #1d232b; --muted: #5d6673; --line: #e3e1da; --accent: #2f6f6a;
+  --accent-soft: #e2efed; --add: #e6f4ea; --add-ink: #1e6b34; --del: #fbe9e9; --del-ink: #9a2a2a;
+  --kw: #8a3ffc; --str: #b0571b; --com: #7b8794; --num: #0f6e8c; --fn: #1f5fbf; --self: #a33a6b; --code: #f5f3ee;
+  --mono: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+}
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) {
+  --bg: #15181c; --panel: #1c2026; --ink: #e5e7ea; --muted: #9aa3ad; --line: #2c323a; --accent: #6cc3b8;
+  --accent-soft: #1f3a37; --add: #17301f; --add-ink: #8fd9a3; --del: #3a1d1d; --del-ink: #f0a0a0;
+  --kw: #c4a0ff; --str: #f0a46b; --com: #7f8a96; --num: #6cc6e0; --fn: #8ab4ff; --self: #f08fbd; --code: #191d22; } }
+:root[data-theme="dark"] {
+  --bg: #15181c; --panel: #1c2026; --ink: #e5e7ea; --muted: #9aa3ad; --line: #2c323a; --accent: #6cc3b8;
+  --accent-soft: #1f3a37; --add: #17301f; --add-ink: #8fd9a3; --del: #3a1d1d; --del-ink: #f0a0a0;
+  --kw: #c4a0ff; --str: #f0a46b; --com: #7f8a96; --num: #6cc6e0; --fn: #8ab4ff; --self: #f08fbd; --code: #191d22; }
+* { box-sizing: border-box; }
+body { margin: 0; background: var(--bg); color: var(--ink); font: 15px/1.5 system-ui, -apple-system, "Segoe UI", sans-serif; }
+header { padding: 14px 20px; border-bottom: 1px solid var(--line); display: flex; align-items: baseline; gap: 14px; flex-wrap: wrap; }
+header h1 { font-size: 18px; margin: 0; }
+header p { margin: 0; color: var(--muted); font-size: 14px; flex: 1; }
+.lang { border: 1px solid var(--line); background: var(--panel); color: var(--ink); border-radius: 999px; padding: 4px 12px; font: inherit; font-size: 13px; cursor: pointer; }
+.layout { display: grid; grid-template-columns: 290px minmax(0, 1fr); min-height: calc(100vh - 56px); }
+nav { border-right: 1px solid var(--line); padding: 16px 10px; position: sticky; top: 0; align-self: start; max-height: 100vh; overflow: auto; }
+nav ul { list-style: none; margin: 0; padding: 0; }
+nav ul.main > li { position: relative; padding-left: 14px; border-left: 2px solid var(--accent-soft); }
+nav ul.branch { margin: 4px 0 6px 10px; padding-left: 10px; border-left: 2px dashed var(--line); }
+nav ul.branch li { border-left: 0; }
+nav a { display: block; padding: 6px 10px; border-radius: 8px; color: inherit; text-decoration: none; }
+nav a:hover { background: var(--accent-soft); }
+nav a.active { background: var(--accent); color: var(--bg); }
+nav a .n { font-weight: 600; }
+nav a .s { display: block; font-size: 12.5px; color: var(--muted); line-height: 1.3; }
+nav a.active .s { color: inherit; opacity: .85; }
+main { padding: 20px 28px 60px; min-width: 0; }
+h2 { margin: 0 0 4px; font-size: 24px; }
+.sub { color: var(--muted); margin-bottom: 14px; }
+.sub a { color: var(--accent); }
+.doc { background: var(--panel); border: 1px solid var(--line); border-left: 4px solid var(--accent); border-radius: 8px; padding: 12px 16px; white-space: pre-wrap; margin-bottom: 18px; font-size: 14.5px; }
+.tabs { display: flex; gap: 6px; border-bottom: 1px solid var(--line); margin-bottom: 16px; flex-wrap: wrap; }
+.tabs button { border: 0; background: none; padding: 8px 12px; font: inherit; color: var(--muted); cursor: pointer; border-bottom: 2px solid transparent; }
+.tabs button.on { color: var(--ink); border-bottom-color: var(--accent); font-weight: 600; }
+h3 { font-size: 16px; margin: 22px 0 8px; }
+.summary { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 8px; }
+.chip { font-size: 12.5px; padding: 2px 9px; border-radius: 999px; background: var(--accent-soft); color: var(--ink); }
+.chip.etend { background: var(--add); color: var(--add-ink); }
+.chip.remplace { background: var(--del); color: var(--del-ink); }
+details { background: var(--panel); border: 1px solid var(--line); border-radius: 8px; margin: 10px 0; }
+summary { cursor: pointer; padding: 9px 12px; display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
+summary code { font-family: var(--mono); font-size: 14px; font-weight: 600; }
+summary .from { color: var(--muted); font-size: 13px; }
+pre { margin: 0; padding: 8px 0; overflow-x: auto; background: var(--code); border-top: 1px solid var(--line); border-radius: 0 0 8px 8px; font: 13px/1.45 var(--mono); }
+pre div { padding: 0 12px 0 28px; white-space: pre; position: relative; min-height: 1.45em; }
+pre div::before { position: absolute; left: 10px; color: var(--muted); }
+pre div.add { background: var(--add); } pre div.add::before { content: "+"; color: var(--add-ink); }
+pre div.del { background: var(--del); } pre div.del::before { content: "−"; color: var(--del-ink); }
+.kw { color: var(--kw); } .str { color: var(--str); } .com { color: var(--com); font-style: italic; } .num { color: var(--num); } .fn { color: var(--fn); font-weight: 600; } .self { color: var(--self); }
+table { border-collapse: collapse; font-size: 13.5px; margin: 6px 0 14px; }
+th, td { border-bottom: 1px solid var(--line); padding: 4px 10px; text-align: right; white-space: nowrap; }
+th:first-child, td:first-child { text-align: left; }
+thead th { color: var(--muted); font-weight: 600; }
+.tablewrap { overflow-x: auto; }
+.better { color: var(--add-ink); font-weight: 600; } .worse { color: var(--del-ink); }
+.note { color: var(--muted); font-size: 13.5px; }
+.opt td, .opt th { text-align: left; }
+.hook { background: var(--panel); border: 1px dashed var(--accent); border-radius: 8px; padding: 8px 12px; margin: 8px 0; font-size: 14px; }
+.hook code { font-family: var(--mono); }
+.hook a { color: var(--accent); }
+.empty { color: var(--muted); font-style: italic; }
+@media (max-width: 760px) {
+  .layout { grid-template-columns: 1fr; }
+  nav { position: static; max-height: none; border-right: 0; border-bottom: 1px solid var(--line); }
+  main { padding: 16px; }
+}
+</style>
+</head>
+<body>
+<header>
+  <h1 id="title"></h1>
+  <p id="lead"></p>
+  <button id="lang" class="lang" type="button"></button>
+</header>
+<div class="layout">
+  <nav id="tree"></nav>
+  <main id="main"></main>
+</div>
+<script>
+const NODES = /*DATA*/;
+const T = {
+  fr: { title: "pysat : la chaîne des solveurs", lead: "Chaque solveur hérite du précédent et n'ajoute qu'une idée. Choisissez une classe pour voir ce qu'elle change.",
+        other: "English", tree: "Arbre d'héritage", inherits: "hérite de", tabs: ["Ce qui change", "Le solveur complet", "Mesures"],
+        root: "La racine : elle ne connaît que la formule, l'API et les statistiques. Les méthodes vides sont les points d'accroche que chaque solveur remplit.",
+        redefined: "méthode(s) redéfinie(s)", added: "nouvelle(s)", options: "option(s)", counters: "compteur(s)",
+        redefTitle: "Méthodes redéfinies, comparées à la version héritée", showDoc: "montrer aussi les docstrings",
+        extends: "étend (appelle le parent)", replaces: "remplace", hook: "vide : point d'accroche",
+        newMethods: "Nouvelles méthodes", methods: "Méthodes", optTitle: "Options (<code>Configuration</code>)",
+        optHead: ["option", "valeur par défaut", ""], status: { new: "nouvelle", changed: "modifiée" },
+        countTitle: "Nouveaux compteurs", hooksTitle: "Points d'accroche laissés aux descendants",
+        hookText: (name, calls, by) => '<code>' + name + '</code> ne fait rien ici ; ' + (calls ? 'appelée par ' + calls + ' ; ' : '') + 'remplie par ' + by + '.',
+        flatNote: n => "Tout le solveur " + n + ", comme s'il n'héritait de rien : chaque méthode vient de la classe indiquée.",
+        from: "Héritées de", thisClass: " (cette classe)",
+        noMeasure: "Pas encore de mesure pour cette classe dans experiments/results/.",
+        measNote: n => "Résultats de <code>experiments/experiments.py</code>. Chaque case : les valeurs du parent mesuré le plus proche, puis celles de " + n + ". En vert, ce qui baisse.",
+        instance: "instance", timeout: "délai dépassé", compared: p => "Comparé à " + p + ".", locale: 'fr-FR' },
+  en: { title: "pysat: the chain of solvers", lead: "Each solver inherits from the previous one and adds a single idea. Choose a class to see what it changes.",
+        other: "Français", tree: "Inheritance tree", inherits: "inherits from", tabs: ["What changes", "The whole solver", "Measures"],
+        root: "The root: it only knows the formula, the API and the statistics. Its empty methods are the hooks that each solver fills.",
+        redefined: "redefined method(s)", added: "new", options: "option(s)", counters: "counter(s)",
+        redefTitle: "Redefined methods, compared with the inherited version", showDoc: "also show the docstrings",
+        extends: "extends (calls the parent)", replaces: "replaces", hook: "empty: a hook",
+        newMethods: "New methods", methods: "Methods", optTitle: "Options (<code>Configuration</code>)",
+        optHead: ["option", "default value", ""], status: { new: "new", changed: "changed" },
+        countTitle: "New counters", hooksTitle: "Hooks left to the descendants",
+        hookText: (name, calls, by) => '<code>' + name + '</code> does nothing here; ' + (calls ? 'called by ' + calls + '; ' : '') + 'filled by ' + by + '.',
+        flatNote: n => "The whole solver " + n + ", as if it inherited from nothing: each method comes from the class shown.",
+        from: "Inherited from", thisClass: " (this class)",
+        noMeasure: "No measure yet for this class in experiments/results/.",
+        measNote: n => "Results of <code>experiments/experiments.py</code>. Each cell: the values of the nearest measured parent, then those of " + n + ". In green, what decreases.",
+        instance: "instance", timeout: "timeout", compared: p => "Compared with " + p + ".", locale: 'en-GB' },
+};
+const params = new URLSearchParams(location.search);
+let lang = params.get('lang') || (() => { try { return localStorage.getItem('pysat-lang'); } catch (e) { return null; } })() ||
+           ((navigator.language || 'fr').startsWith('fr') ? 'fr' : 'en');
+if (!T[lang]) lang = 'fr';
+const L = () => lang === 'fr' ? 0 : 1;
+const t = () => T[lang];
+const byName = Object.fromEntries(NODES.map(n => [n.name, n]));
+const esc = s => String(s).replace(/[&<>"]/g, c => ({'&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;'}[c]));
+let tab = 0, showDoc = false;
+
+const size = name => 1 + NODES.filter(n => n.parent === name).reduce((s, n) => s + size(n.name), 0);
+function item(n) { return '<li><a href="#' + n.name + '" data-n="' + n.name + '"><span class="n">' + n.name + '</span><span class="s">' + esc(n.summary[L()]) + '</span></a>'; }
+function chain(n) {
+  // The main line (the largest subtree) stays in the same column; the other children are indented branches
+  let h = '';
+  while (n) {
+    const kids = NODES.filter(k => k.parent === n.name).sort((a, b) => size(b.name) - size(a.name));
+    h += item(n) + (kids.length > 1 ? '<ul class="branch">' + kids.slice(1).map(k => chain(k)).join('') + '</ul>' : '') + '</li>';
+    n = kids[0];
+  }
+  return h;
+}
+
+function code(lines) { return '<pre>' + lines.map(l => '<div>' + (l || ' ') + '</div>').join('') + '</pre>'; }
+function diff(lines) {
+  return '<pre>' + lines.filter(([k, l, d]) => showDoc || !d).map(([k, l]) => '<div class="' + (k === '+' ? 'add' : k === '-' ? 'del' : '') + '">' + (l || ' ') + '</div>').join('') + '</pre>';
+}
+function fmt(v) { return v == null ? '–' : (typeof v === 'number' && !Number.isInteger(v)) ? v.toFixed(2) : Number(v).toLocaleString(t().locale); }
+
+function viewDiff(n) {
+  const red = n.methods.filter(m => m.kind === 'redefinie'), add = n.methods.filter(m => m.kind === 'ajoutee');
+  const opts = n.options.filter(o => o.status !== 'same');
+  let h = n.parent ? '' : '<p class="note">' + t().root + '</p>';
+  h += '<div class="summary"><span class="chip">' + red.length + ' ' + t().redefined + '</span><span class="chip">' + add.length + ' ' + t().added + '</span>' +
+       (opts.length ? '<span class="chip">' + opts.length + ' ' + t().options + '</span>' : '') +
+       (n.counters.length ? '<span class="chip">' + n.counters.length + ' ' + t().counters + '</span>' : '') + '</div>';
+  if (red.length) {
+    h += '<h3>' + t().redefTitle + '</h3><label class="note"><input type="checkbox" id="showdoc"' + (showDoc ? ' checked' : '') + '> ' + t().showDoc + '</label>';
+    h += red.map(m => '<details open><summary><code>' + m.name + '</code><span class="from">' + m.parentOrigin + '.' + m.name + ' → ' + n.name + '.' + m.name +
+      '</span><span class="chip ' + m.mode + '">' + (m.mode === 'etend' ? t().extends : t().replaces) + '</span>' +
+      (m.hook ? '<span class="chip">' + t().hook + '</span>' : '') + '</summary>' + diff(m.diff) + '</details>').join('');
+  }
+  if (add.length) {
+    h += '<h3>' + (n.parent ? t().newMethods : t().methods) + '</h3>';
+    h += add.map(m => '<details' + (n.parent ? ' open' : '') + '><summary><code>' + m.name + '</code>' + (m.hook ? '<span class="chip">' + t().hook + '</span>' : '') + '</summary>' + code(m.source) + '</details>').join('');
+  }
+  if (opts.length) {
+    h += '<h3>' + t().optTitle + '</h3><table class="opt"><thead><tr>' + t().optHead.map(x => '<th>' + x + '</th>').join('') + '</tr></thead><tbody>' +
+      opts.map(o => '<tr><td><code>' + esc(o.name) + '</code></td><td><code>' + esc(o.value) + '</code></td><td>' + t().status[o.status] + '</td></tr>').join('') + '</tbody></table>';
+  }
+  if (n.counters.length) h += '<h3>' + t().countTitle + '</h3><p>' + n.counters.map(c => '<span class="chip">' + esc(c) + '</span>').join(' ') + '</p>';
+  if (n.hooks.length) {
+    h += '<h3>' + t().hooksTitle + '</h3>' + n.hooks.map(k => '<div class="hook">' +
+      t().hookText(k.name, k.calls.length ? '<code>' + k.calls.join('</code>, <code>') + '</code>' : '', k.by.map(b => '<a href="#' + b + '">' + b + '</a>').join(', ')) + '</div>').join('');
+  }
+  return h;
+}
+
+function viewFlat(n) {
+  let h = '<p class="note">' + t().flatNote(n.name) + '</p>', current = null;
+  for (const m of n.flat) {
+    if (m.origin !== current) { current = m.origin; h += '<h3>' + t().from + ' <a href="#' + m.origin + '">' + m.origin + '</a>' + (m.origin === n.name ? t().thisClass : '') + '</h3>'; }
+    h += '<details><summary><code>' + m.name + '</code></summary>' + code(m.source) + '</details>';
+  }
+  return h;
+}
+
+function viewMeasures(n) {
+  if (!n.measures.length) return '<p class="empty">' + t().noMeasure + '</p>';
+  return '<p class="note">' + t().measNote(n.name) + '</p>' + n.measures.map(e => {
+    const two = e.solvers.length === 2;
+    let h = '<h3>' + esc(e.title[L()]) + '</h3><div class="tablewrap"><table><thead><tr><th>' + t().instance + '</th>' +
+      e.columns.map(c => '<th>' + esc(c[L()]) + '</th>').join('') + '</tr></thead><tbody>';
+    for (const r of e.rows) {
+      h += '<tr><td>' + esc(r.instance) + '</td>' + e.keys.map(k => {
+        const vals = r.cells.map(c => c == null ? null : c.timeout ? t().timeout : c[k]);
+        if (!two) return '<td>' + (typeof vals[0] === 'string' ? vals[0] : fmt(vals[0])) + '</td>';
+        const [a, b] = vals;
+        const cls = (typeof a === 'number' && typeof b === 'number') ? (b < a * 0.95 ? 'better' : b > a * 1.05 ? 'worse' : '') : '';
+        return '<td>' + (typeof a === 'string' ? a : fmt(a)) + ' → <span class="' + cls + '">' + (typeof b === 'string' ? b : fmt(b)) + '</span></td>';
+      }).join('') + '</tr>';
+    }
+    return h + '</tbody></table></div>' + (two ? '<p class="note">' + t().compared(e.solvers[0]) + '</p>' : '');
+  }).join('');
+}
+
+function show(name) {
+  const n = byName[name] || byName['DPLL'];
+  document.documentElement.lang = lang;
+  document.getElementById('title').textContent = t().title;
+  document.getElementById('lead').textContent = t().lead;
+  document.getElementById('lang').textContent = t().other;
+  const nav = document.getElementById('tree');
+  nav.setAttribute('aria-label', t().tree);
+  nav.innerHTML = '<ul class="main">' + chain(NODES.find(x => !x.parent)) + '</ul>';
+  nav.querySelectorAll('a').forEach(a => a.classList.toggle('active', a.dataset.n === n.name));
+  const views = [viewDiff, viewFlat, viewMeasures];
+  document.getElementById('main').innerHTML =
+    '<h2>' + n.name + '</h2><div class="sub">' + (n.parent ? t().inherits + ' <a href="#' + n.parent + '">' + n.parent + '</a> · ' : '') + '<code>' + n.file + '</code></div>' +
+    '<div class="doc">' + n.doc.split('\n\n').map(p => esc(p.replace(/\n\s*/g, ' '))).join('\n\n') + '</div>' +
+    '<div class="tabs">' + t().tabs.map((label, i) => '<button data-t="' + i + '" class="' + (i === tab ? 'on' : '') + '">' + label + '</button>').join('') + '</div>' +
+    '<div id="view">' + views[tab](n) + '</div>';
+  document.querySelectorAll('.tabs button').forEach(b => b.onclick = () => { tab = +b.dataset.t; show(n.name); });
+  const box = document.getElementById('showdoc');
+  if (box) box.onchange = () => { showDoc = box.checked; show(n.name); };
+  document.title = n.name + ' — ' + t().title;
+}
+document.getElementById('lang').onclick = () => {
+  lang = lang === 'fr' ? 'en' : 'fr';
+  try { localStorage.setItem('pysat-lang', lang); } catch (e) {}
+  show(location.hash.slice(1));
+};
+window.addEventListener('hashchange', () => { show(location.hash.slice(1)); window.scrollTo(0, 0); });
+show(location.hash.slice(1) || 'DPLL');
+</script>
+</body>
+</html>
