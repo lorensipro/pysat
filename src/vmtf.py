@@ -31,11 +31,11 @@ class VMTF(Watches):
     def _newVar(self):
         super()._newVar()
         self._prev.append(None); self._next.append(None); self._stamp.append(0)
-        self._enqueue(self._nbvars - 1)
+        self._varEnqueue(self._nbvars - 1)
         self._searchPointer = self._last
 
-    def _dequeue(self, v):
-        ''' Removes v from the queue '''
+    def _varDequeue(self, v):
+        ''' Removes the variable v from the VMTF queue (not to be confused with the propagation queue of the trail) '''
         p, n = self._prev[v], self._next[v]
         if p is None: self._first = n
         else: self._next[p] = n
@@ -43,8 +43,8 @@ class VMTF(Watches):
         else: self._prev[n] = p
         self._prev[v] = self._next[v] = None
 
-    def _enqueue(self, v):
-        ''' Puts v at the end of the queue, with a new stamp '''
+    def _varEnqueue(self, v):
+        ''' Puts the variable v at the end of the VMTF queue, with a new stamp '''
         self._prev[v] = self._last
         self._next[v] = None
         if self._last is None: self._first = v
@@ -61,8 +61,8 @@ class VMTF(Watches):
         self._analyzed.sort(key = lambda v: self._stamp[v])          # Keep their relative order
         for v in self._analyzed:
             if v != self._last:
-                self._dequeue(v)
-                self._enqueue(v)                                     # Move to front (the end of the queue)
+                self._varDequeue(v)
+                self._varEnqueue(v)                                     # Move to front (the end of the queue)
                 self._stats.moveToFront += 1
         self._analyzed.clear()
         return result                                                # (they are all assigned: the search pointer stays valid)
