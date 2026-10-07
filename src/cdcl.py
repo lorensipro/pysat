@@ -32,6 +32,7 @@ class CDCL(DPLL):
             level in position 1) and the level where to backtrack: the second highest level of the clause.'''
         seen = self._seen
         analyzed = []                  # The variables met during the analysis (for the heuristics)
+        used = []                      # The clauses used during the analysis: the conflict, then the reasons
         learnt = [None]                # We leave a room for the asserting literal in place 0
         pathC = 0                      # Number of literals of the current level still to remove
         p = None                       # The literal of the trail whose reason is c (None for the conflict itself)
@@ -39,7 +40,7 @@ class CDCL(DPLL):
         index = len(self._trail) - 1
         while True:
             if p is not None: self._stats.resolutions += 1
-            self._clauseInAnalysis(c)
+            used.append(c)
             for q in c:
                 v = litToVar(q)
                 if p is not None and v == litToVar(p): continue    # (the literal propagated by this reason)
@@ -71,6 +72,7 @@ class CDCL(DPLL):
         self._stats.sumLearntSize += len(learnt)
         self._stats.sumBackjump += self._decisionLevel() - backtrackLevel
         self._bumpVariables(analyzed)
+        self._bumpClauses(used)
         return Clause(learnt, learnt=True), backtrackLevel
 
     def _minimize(self, learnt):
@@ -78,8 +80,9 @@ class CDCL(DPLL):
             others). The variables of learnt[1:] are marked as seen. CDCL: no minimization.'''
         return learnt
 
-    def _clauseInAnalysis(self, c):
-        ''' Called for each clause used during the conflict analysis (the conflict, then the reasons) '''
+    def _bumpClauses(self, used):
+        ''' Called once at the end of each conflict analysis (all the literals are still assigned), with the
+            clauses used: the conflict, then the reasons. CDCL: nothing to do (no clause is forgotten).'''
         return
 
     def _bumpVariables(self, analyzed):

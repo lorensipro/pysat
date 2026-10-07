@@ -60,17 +60,15 @@ class Reduce(Restarts):
             for d in self._learnts: d.activity *= 1e-20
             self._clauseInc *= 1e-20
 
-    def _clauseInAnalysis(self, c):
-        if not c.learnt: return
-        self._bumpClause(c)
-        if self._config.updateLBD and c.lbd > 2:                   # The clause may link fewer blocks now
-            lbd = self._computeLBD(c)
-            if lbd < c.lbd: c.lbd = lbd
-
-    def _analyze(self, confl):
-        result = super()._analyze(confl)
+    def _bumpClauses(self, used):
+        ''' The learnt clauses used in the conflict analysis are bumped, and their LBD is updated '''
+        for c in used:
+            if not c.learnt: continue
+            self._bumpClause(c)
+            if self._config.updateLBD and c.lbd > 2:               # The clause may link fewer blocks now
+                lbd = self._computeLBD(c)
+                if lbd < c.lbd: c.lbd = lbd
         self._clauseInc /= self._config.clauseDecay                # The next bumps will count more
-        return result
 
     def _locked(self, c):
         ''' A clause that is the reason of an assigned literal cannot be removed '''
