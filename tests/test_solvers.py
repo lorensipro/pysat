@@ -10,7 +10,7 @@ SRC = os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', 'src')
 EXAMPLES = os.path.join(SRC, '..', 'examples')
 sys.path.insert(0, SRC)
 
-import pysat, pysatdpll, dpll, cdcl, sato, watches, vsids, lookahead, restarts, reduce, minimize, vmtf
+import pysat, pysatdpll, dpll, cdcl, sato, watches, vsids, lookahead, restarts, reduce, minimize, vmtf, glucose
 from satutils import readFile
 
 
@@ -206,6 +206,19 @@ class MinimizeVMTF(vmtf.MinimizeVMTF):
 class MinimizeVMTFTests(SolverTests, IncrementalTests, LearntTests, unittest.TestCase):
     solverClass = MinimizeVMTF
 
+class FrequentGlucose(glucose.Glucose):
+    class Configuration(glucose.Glucose.Configuration):
+        lbdQueueSize = 3; trailQueueSize = 5; blockingStart = 5; firstReduce = 5; incReduce = 1   # (very often, to test them)
+
+class GlucoseTests(SolverTests, IncrementalTests, LearntTests, unittest.TestCase):
+    solverClass = FrequentGlucose
+
+class FrequentGlucoseVMTF(glucose.GlucoseVMTF):
+    Configuration = FrequentGlucose.Configuration
+
+class GlucoseVMTFTests(SolverTests, IncrementalTests, LearntTests, unittest.TestCase):
+    solverClass = FrequentGlucoseVMTF
+
 class BalancedDPLL(dpll.DPLL):
     class Configuration(dpll.DPLL.Configuration):
         heuristic = 'balanced'
@@ -250,7 +263,7 @@ class CommandLineTests(unittest.TestCase):
         return subprocess.run([sys.executable, os.path.join(SRC, script), cnf], capture_output=True, text=True)
 
     def test_unsatBenchmarks(self):
-        for script in ['pysat.py', 'pysatdpll.py', 'dpll.py', 'cdcl.py', 'sato.py', 'watches.py', 'vsids.py', 'lookahead.py', 'restarts.py', 'reduce.py', 'minimize.py', 'vmtf.py']:
+        for script in ['pysat.py', 'pysatdpll.py', 'dpll.py', 'cdcl.py', 'sato.py', 'watches.py', 'vsids.py', 'lookahead.py', 'restarts.py', 'reduce.py', 'minimize.py', 'vmtf.py', 'glucose.py']:
             for f in ['sample.cnf', os.path.join('BMC-Unsat', 'barrel2.cnf.gz'), os.path.join('BMC-Unsat', 'longmult0.cnf.gz')]:
                 r = self.run_(script, os.path.join(EXAMPLES, f))
                 self.assertEqual(r.returncode, 20, script + " " + f + "\n" + r.stdout + r.stderr)
@@ -261,7 +274,7 @@ class CommandLineTests(unittest.TestCase):
         with tempfile.NamedTemporaryFile('w', suffix='.cnf', delete=False) as f:
             f.write("p cnf 30 90\n" + "".join(" ".join(map(str, c)) + " 0\n" for c in clauses))
         try:
-            for script in ['pysat.py', 'pysatdpll.py', 'dpll.py', 'cdcl.py', 'sato.py', 'watches.py', 'vsids.py', 'lookahead.py', 'restarts.py', 'reduce.py', 'minimize.py', 'vmtf.py']:
+            for script in ['pysat.py', 'pysatdpll.py', 'dpll.py', 'cdcl.py', 'sato.py', 'watches.py', 'vsids.py', 'lookahead.py', 'restarts.py', 'reduce.py', 'minimize.py', 'vmtf.py', 'glucose.py']:
                 r = self.run_(script, f.name)
                 self.assertEqual(r.returncode, 10, r.stdout + r.stderr)
                 model = [int(x) for line in r.stdout.splitlines() if line.startswith('v') for x in line[1:].split()]

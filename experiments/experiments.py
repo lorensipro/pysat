@@ -44,6 +44,8 @@ SOLVERS = {
     'min-recursive':  ('minimize', 'Minimize', {}),
     'vmtf':           ('vmtf', 'VMTF', {}),
     'min-vmtf':       ('vmtf', 'MinimizeVMTF', {}),
+    'glucose':        ('glucose', 'Glucose', {}),
+    'glucose-vmtf':   ('glucose', 'GlucoseVMTF', {}),
 }
 
 # Random 3-SAT at the threshold (ratio 4.26), UNSAT: (variables, seed) for src/genRandom.py
@@ -92,6 +94,10 @@ EXPERIMENTS = {
              ['watches', 'vsids', 'vmtf', 'min-recursive', 'min-vmtf'],
              lambda: bmc('barrel5', 'barrel6', 'longmult6', 'queueinvar14') + recent(*FEASIBLE_RECENT) + rnd()[-2:],
              ['time', 'conflicts', 'decisions']),
+    'glucose': ("Restarts: Luby or Glucose (LBD), with VSIDS or VMTF, on the whole chain",
+                ['min-recursive', 'glucose', 'min-vmtf', 'glucose-vmtf'],
+                lambda: bmc('barrel5', 'barrel6', 'longmult6', 'queueinvar14') + recent(*FEASIBLE_RECENT) + rnd()[-2:],
+                ['time', 'conflicts', 'restarts', 'blockedRestarts']),
     'recent': ("Recent benchmarks (SAT competitions 2020-2025, from GBD)",
                ['watches', 'vsids', 'luby+phase'],
                lambda: recent(),

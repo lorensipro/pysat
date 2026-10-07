@@ -200,10 +200,12 @@ class DPLL(Solver):
 
                 if self._decisionLevel() == 0: return self._cst.lit_False # We proved UNSAT
 
+                trailSize = len(self._trail)                              # (the size of the assignment at the conflict)
                 learnt, backtrackLevel = self._analyze(confl)
                 self._cancelUntil(backtrackLevel)
                 self._learn(learnt)
                 self._uncheckedEnqueue(learnt[0], learnt)                 # The learnt clause is unit: its first literal is forced
+                self._afterConflict(learnt, trailSize)
             else:                                                          # No conflict
                 self._manageLearnts()                                      # Maybe forget some learnt clauses
                 if self._restartNeeded():                                  # Restart: back to level 0 (the learnt clauses are kept)
@@ -225,6 +227,12 @@ class DPLL(Solver):
 
     def _manageLearnts(self):
         ''' Called at each node, before the decision: may remove learnt clauses. DPLL: nothing to do.'''
+        return
+
+    def _afterConflict(self, learnt, trailSize):
+        ''' Called after each conflict, once the clause is learnt: the policies that follow the conflicts
+            (restarts...) can update their statistics. trailSize is the size of the assignment at the conflict.
+            The classes that redefine it call super(): their policies add up. DPLL: nothing to do.'''
         return
 
     def _restartNeeded(self):

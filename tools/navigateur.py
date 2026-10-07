@@ -19,7 +19,7 @@ sys.path.insert(0, SRC)
 # The classes of the chain, in reading order: (module, class)
 CHAIN = [('satsolver', 'Solver'), ('dpll', 'DPLL'), ('cdcl', 'CDCL'), ('sato', 'SATO'), ('watches', 'Watches'),
          ('vsids', 'VSIDS'), ('restarts', 'Restarts'), ('reduce', 'Reduce'), ('minimize', 'Minimize'),
-         ('vmtf', 'VMTF'), ('vmtf', 'MinimizeVMTF'), ('lookahead', 'Lookahead'), ('lookahead', 'DoubleLookahead')]
+         ('vmtf', 'VMTF'), ('vmtf', 'MinimizeVMTF'), ('glucose', 'Glucose'), ('glucose', 'GlucoseVMTF'), ('lookahead', 'Lookahead'), ('lookahead', 'DoubleLookahead')]
 
 # One line per class, for the tree of the page: (French, English)
 SUMMARIES = {
@@ -34,12 +34,14 @@ SUMMARIES = {
     'Minimize': ("raccourcir les clauses apprises (Minisat 2)", "shorten the learnt clauses (Minisat 2)"),
     'VMTF': ("choisir par une file : les variables des conflits passent en tête (2004)", "choose with a queue: the variables of the conflicts move to the front (2004)"),
     'MinimizeVMTF': ("toute la chaîne, avec VMTF au lieu de VSIDS (héritage multiple)", "the whole chain, with VMTF instead of VSIDS (multiple inheritance)"),
+    'Glucose': ("redémarrer quand les LBD récents se dégradent (Glucose, 2009-2012)", "restart when the recent LBD get worse (Glucose, 2009-2012)"),
+    'GlucoseVMTF': ("redémarrages de Glucose avec VMTF, proche du mode focalisé de Kissat", "Glucose restarts with VMTF, close to the focused mode of Kissat"),
     'Lookahead': ("réfléchir avant de choisir : essayer chaque variable", "think before choosing: try each variable"),
     'DoubleLookahead': ("réfléchir encore plus : un second niveau", "think even more: a second level"),
 }
 
 # Comparisons suggested in the page, besides the parent: class -> classes
-COMPARE = {'Watches': ['SATO'], 'SATO': ['Watches'], 'DoubleLookahead': ['DPLL'], 'VSIDS': ['VMTF'], 'VMTF': ['VSIDS'], 'MinimizeVMTF': ['Minimize']}
+COMPARE = {'Watches': ['SATO'], 'SATO': ['Watches'], 'DoubleLookahead': ['DPLL'], 'VSIDS': ['VMTF'], 'VMTF': ['VSIDS'], 'MinimizeVMTF': ['Minimize'], 'Glucose': ['Minimize'], 'GlucoseVMTF': ['Glucose', 'MinimizeVMTF']}
 
 # The titles of the experiments: (French, English)
 TITLES = {
@@ -54,6 +56,8 @@ TITLES = {
                  "Minimization of the learnt clauses: none, local, recursive (Minisat 2)"),
     'vmtf': ("VSIDS ou VMTF, seuls et avec toute la chaîne (redémarrages, phases, LBD, minimisation)",
              "VSIDS or VMTF, alone and with the whole chain (restarts, phases, LBD, minimization)"),
+    'glucose': ("Redémarrages : Luby ou Glucose (LBD), avec VSIDS ou VMTF, sur toute la chaîne",
+                "Restarts: Luby or Glucose (LBD), with VSIDS or VMTF, on the whole chain"),
     'recent': ("Instances récentes (compétitions SAT 2020-2025, base GBD)", "Recent instances (SAT competitions 2020-2025, GBD)"),
 }
 
