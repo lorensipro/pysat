@@ -15,6 +15,8 @@ class DPLL(Solver):
     class Configuration(Solver.Configuration):
         ''' Contains all the configuration variables for the solver '''
         default_value = False          # default value for branching
+        heuristic = 'occurrences'      # static order of the decisions: 'occurrences' (the most frequent variables
+                                       # first) or 'balanced' (frequent, with as many positive as negative occurrences)
 
     def __init__(self):
         super().__init__()
@@ -199,15 +201,28 @@ class DPLL(Solver):
                 self._learn(learnt)
                 self._uncheckedEnqueue(learnt[0], learnt)                 # The learnt clause is unit: its first literal is forced
             else:                                                          # No conflict
+                if self._simplifyNode(): continue                          # Some literals were fixed: propagate them first
                 l = self._pickBranchLit()                                  # Picks a new variable to branch on
                 if l is None: return self._cst.lit_True                    # All variables are assigned and no conflict: SAT was proven
                 self._stats.decisions += 1
                 self._newDecisionLevel()                                   # Creates a new decision level
                 self._uncheckedEnqueue(l)                                  # propagates this literal with no reason (this is a decision)
 
+    def _staticScore(self, v):
+        ''' The score of the variable v for the static heuristic, computed on the formula given at the start '''
+        pos = len(self._occ[varToLit(v)]); neg = len(self._occ[varToLit(v, 1)])
+        if self._config.heuristic == 'balanced':
+            return pos * neg * 1024 + pos + neg                    # (as in Satz: the product favours the balanced variables)
+        return pos + neg
+
+    def _simplifyNode(self):
+        ''' Called at each node of the search, before the decision (everything is propagated).
+            Can fix some literals at the current level and return True (they will be propagated before
+            the decision). DPLL: nothing to do.'''
+        return False
+
     def _solve(self):
-        # Static heuristic: the variables that occur the most first
-        self._order = sorted(range(self._nbvars), key = lambda v: -len(self._occ[varToLit(v)]) - len(self._occ[varToLit(v, 1)]))
+        self._order = sorted(range(self._nbvars), key = lambda v: -self._staticScore(v)) # Static heuristic: the best scores first
         status = self._search()
         if status == self._cst.lit_True:                           # We copy the solution before cancelling the decisions
             self.finalModel = [v+1 if self._litValues[varToLit(v)] == self._cst.lit_True else -v-1 for v in range(self._nbvars)]

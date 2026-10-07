@@ -1,7 +1,7 @@
 from heapq import *
 from array import *
 
-import gzip, copy, time
+import gzip, lzma, copy, time
 
 # Small functions to facilitate the map integers with internal values of the solver
 def sign(i):
@@ -15,6 +15,8 @@ def abs(i):
 def myopen(f):
     if f.endswith(".gz"):
         return gzip.open(f, mode='rt')
+    if f.endswith(".xz"):
+        return lzma.open(f, mode='rt')
     return open(f, 'r')
 
 def readFile(solver, filename, verbosity=1):
