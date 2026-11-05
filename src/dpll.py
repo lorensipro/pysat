@@ -166,6 +166,32 @@ class DPLL(Solver):
                 return self._decisionLit(v)
         return None
 
+    def _nextAssumption(self):
+        ''' Returns the first assumption that is not true (None if they are all true). They are decided
+            before any other decision. They stay true as long as there is another decision: when one of
+            them is found false, all the decisions of the trail are assumptions.'''
+        for p in self._assumptions:
+            if self._litValues[p] != self._cst.lit_True: return p
+        return None
+
+    def _analyzeFinal(self, p):
+        ''' The assumption p is false: returns the assumptions it depends on (as ints, p first), the core.
+            As in the conflict analysis, we go back in the implication graph (in the reverse order of
+            the trail) from -p to the decisions, which are all assumptions here.'''
+        core = [litToInt(p)]
+        seen = set([litToVar(p)])
+        for x in range(len(self._trail) - 1, -1, -1):
+            l = self._trail[x]; v = litToVar(l)
+            if v not in seen or self._level[v] == 0: continue      # (level 0: true whatever the assumptions)
+            r = self._reason[v]
+            if r is not None:
+                for q in r: seen.add(litToVar(q))                  # l depends on the other literals of its reason
+            elif x == self._trailLevels[self._level[v] - 1]:
+                core.append(litToInt(l))                           # A decision: an assumption of the core
+            else:                                                  # Fixed with no reason (lookahead): depends on all
+                for i in range(self._level[v]): seen.add(litToVar(self._trail[self._trailLevels[i]])) # the decisions up to its level
+        return core
+
     def _analyze(self, confl):
         ''' Returns the clause to learn and the level where to backtrack. This clause is
             asserting: its first literal is the only one that is not false at this level.
@@ -212,7 +238,11 @@ class DPLL(Solver):
                     self._cancelUntil(0)
                     return self._cst.lit_Undef
                 if self._simplifyNode(): continue                          # Some literals were fixed: propagate them first
-                l = self._pickBranchLit()                                  # Picks a new variable to branch on
+                l = self._nextAssumption()                                 # The assumptions are the first decisions
+                if l is not None and self._litValues[l] == self._cst.lit_False:
+                    self.finalCore = self._analyzeFinal(l)                 # An assumption is false: UNSAT under the assumptions
+                    return self._cst.lit_False
+                if l is None: l = self._pickBranchLit()                    # Picks a new variable to branch on
                 if l is None: return self._cst.lit_True                    # All variables are assigned and no conflict: SAT was proven
                 self._stats.decisions += 1
                 self._newDecisionLevel()                                   # Creates a new decision level

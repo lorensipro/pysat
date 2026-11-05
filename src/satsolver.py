@@ -47,7 +47,9 @@ class Solver():
         self._nbvars = 0               # Number of variables (created on the fly by addClause)
         self._originalClauses = []     # The clauses as given by the user (used to check the models)
         self._ok = True                # False when the formula is known to be UNSAT (empty clause found)
+        self._assumptions = []         # The literals assumed true for the current call to solve() only
         self.finalModel = []           # the model (if SAT) will be copied in this array of variables
+        self.finalCore = []            # the assumptions responsible for the UNSAT answer (if UNSAT under assumptions)
 
         self._stats = Stats()          # statistics (see satstats.py): each solver adds its own counters
         return
@@ -75,12 +77,20 @@ class Solver():
     def _solve(self):
         raise NotImplementedError
 
-    def solve(self):
+    def solve(self, assumptions = []):
         ''' Returns lit_True (SAT, the model is in finalModel), lit_False (UNSAT) or lit_Undef
             (unknown: incomplete solver, or interrupted by the user. In this last case, the
-            solver should not be used anymore).'''
+            solver should not be used anymore).
+            The assumptions (a list of non zero ints, as in DIMACS) are true for this call only
+            (incremental SAT, as in Minisat): they are the first decisions. If the answer is UNSAT
+            because of them, finalCore is the subset of the assumptions responsible for it; the
+            formula itself is not UNSAT, and the solver can be called again.'''
         self.finalModel = []
+        self.finalCore = []
         if not self._ok: return self._cst.lit_False                # The empty clause was already found
+        for i in assumptions:
+            while abs(i) > self._nbvars: self._newVar()            # Creates the missing variables
+        self._assumptions = [intToLit(i) for i in assumptions]
         self._stats.startSearch()
         try:
             status = self._solve()
@@ -91,8 +101,10 @@ class Solver():
 
         if status == self._cst.lit_True:
             assert self._checkModel(self.finalModel), "The model does not satisfy the formula"
-        elif status == self._cst.lit_False:
-            self._ok = False                                       # Adding clauses will not change it
+            assert all(i in self.finalModel for i in assumptions), "The model does not satisfy the assumptions"
+        elif status == self._cst.lit_False and len(self.finalCore) == 0:
+            self._ok = False                                       # UNSAT without assumptions: adding clauses will not change it
+        self._assumptions = []
         return status
 
     def _checkModel(self, model):

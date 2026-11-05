@@ -62,18 +62,22 @@ python genRandom.py 100 3 4.26 > random.cnf    # 100 variables, 3-CNF, ratio 4.2
 
 Some benchmarks are available in `examples/BMC-Unsat` (try `barrel5.cnf.gz`, it takes a few seconds).
 
-The solver can also be used from Python:
+The solvers of the chain can also be used from Python (from the `src` directory). They are incremental: clauses can be added before the first call to `solve()` or between two calls, and each call can take assumptions, true for this call only (as in Minisat):
 
 ```python
-from pysat import Solver
+from glucose import Glucose
 
-s = Solver()
+s = Glucose()
 s.addClause([1, -2])
 s.addClause([2, 3])
-s.buildDataStructure()
 if s.solve() == s._cst.lit_True:
-    print(s.finalModel)
+    print(s.finalModel)          # [-1, -2, 3]
+s.addClause([-3])                # a new clause, same solver (the learnt clauses are kept)
+if s.solve([-1]) == s._cst.lit_False:
+    print(s.finalCore)           # [-1]: the assumptions responsible for the UNSAT answer
 ```
+
+(The older single-file solvers `pysat.py` and `pysatdpll.py` are not incremental: they need a call to `s.buildDataStructure()` after the last clause and before `solve()`.)
 
 ### Tests ###
 
