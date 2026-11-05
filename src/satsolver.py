@@ -49,7 +49,7 @@ class Solver():
         self._ok = True                # False when the formula is known to be UNSAT (empty clause found)
         self._assumptions = []         # The literals assumed true for the current call to solve() only
         self.finalModel = []           # the model (if SAT) will be copied in this array of variables
-        self.finalCore = []            # the assumptions responsible for the UNSAT answer (if UNSAT under assumptions)
+        self.failedAssumptions = []    # the assumptions responsible for the UNSAT answer (if UNSAT under assumptions)
 
         self._stats = Stats()          # statistics (see satstats.py): each solver adds its own counters
         return
@@ -83,10 +83,11 @@ class Solver():
             solver should not be used anymore).
             The assumptions (a list of non zero ints, as in DIMACS) are true for this call only
             (incremental SAT, as in Minisat): they are the first decisions. If the answer is UNSAT
-            because of them, finalCore is the subset of the assumptions responsible for it; the
+            because of them, failedAssumptions is the subset of the assumptions responsible for it (as
+            in IPASIR; not a core, which is a set of clauses); the
             formula itself is not UNSAT, and the solver can be called again.'''
         self.finalModel = []
-        self.finalCore = []
+        self.failedAssumptions = []
         if not self._ok: return self._cst.lit_False                # The empty clause was already found
         for i in assumptions:
             while abs(i) > self._nbvars: self._newVar()            # Creates the missing variables
@@ -102,7 +103,7 @@ class Solver():
         if status == self._cst.lit_True:
             assert self._checkModel(self.finalModel), "The model does not satisfy the formula"
             assert all(i in self.finalModel for i in assumptions), "The model does not satisfy the assumptions"
-        elif status == self._cst.lit_False and len(self.finalCore) == 0:
+        elif status == self._cst.lit_False and len(self.failedAssumptions) == 0:
             self._ok = False                                       # UNSAT without assumptions: adding clauses will not change it
         self._assumptions = []
         return status

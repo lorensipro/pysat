@@ -125,11 +125,11 @@ class IncrementalTests():
                     self.assertEqual(result, solver._cst.lit_False, "should be UNSAT: " + str(clauses))
 
 class AssumptionTests():
-    ''' Tests for the assumptions (true for one call only) and the cores, on the same solver '''
+    ''' Tests for the assumptions (true for one call only) and the failed assumptions, on the same solver '''
 
     def test_assumptions(self):
         rnd = random.Random(1815)
-        nbCores = 0
+        nbFailed = 0
         for i in range(120):
             n = rnd.randint(3,9)
             solver = self.solverClass()
@@ -144,14 +144,14 @@ class AssumptionTests():
                     self.assertTrue(isModel(clauses + [[a] for a in assumptions], solver.finalModel))
                 else:
                     self.assertEqual(result, solver._cst.lit_False, "should be UNSAT: " + str(clauses) + " under " + str(assumptions))
-                    core = solver.finalCore
-                    self.assertTrue(all(a in assumptions for a in core), "not a subset of the assumptions: " + str(core))
-                    self.assertFalse(bruteForceSat(clauses + [[a] for a in core], n), "not a core: " + str(core))
-                    if bruteForceSat(clauses, n): self.assertGreater(len(core), 0); nbCores += 1
+                    failed = solver.failedAssumptions
+                    self.assertTrue(all(a in assumptions for a in failed), "not a subset of the assumptions: " + str(failed))
+                    self.assertFalse(bruteForceSat(clauses + [[a] for a in failed], n), "not enough to fail: " + str(failed))
+                    if bruteForceSat(clauses, n): self.assertGreater(len(failed), 0); nbFailed += 1
                 if rnd.randint(0,2) == 0:                          # Clauses can be added between two calls
                     c = randomFormula(rnd, n, 1, k=3)[0]
                     clauses.append(c); solver.addClause(c)
-        self.assertGreater(nbCores, 0)
+        self.assertGreater(nbFailed, 0)
 
 class LearntTests():
     ''' The learnt clauses must be consequences of the formula (checked by enumeration) '''

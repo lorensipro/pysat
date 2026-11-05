@@ -74,7 +74,7 @@ if s.solve() == s._cst.lit_True:
     print(s.finalModel)          # [-1, -2, 3]
 s.addClause([-3])                # a new clause, same solver (the learnt clauses are kept)
 if s.solve([-1]) == s._cst.lit_False:
-    print(s.finalCore)           # [-1]: the assumptions responsible for the UNSAT answer
+    print(s.failedAssumptions)   # [-1]: the assumptions responsible for the UNSAT answer
 ```
 
 (The older single-file solvers `pysat.py` and `pysatdpll.py` are not incremental: they need a call to `s.buildDataStructure()` after the last clause and before `solve()`.)
