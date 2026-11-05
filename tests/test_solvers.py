@@ -124,6 +124,35 @@ class IncrementalTests():
                 else:
                     self.assertEqual(result, solver._cst.lit_False, "should be UNSAT: " + str(clauses))
 
+class AssumptionTests():
+    ''' Tests for the assumptions (true for one call only) and the cores, on the same solver '''
+
+    def test_assumptions(self):
+        rnd = random.Random(1815)
+        nbCores = 0
+        for i in range(120):
+            n = rnd.randint(3,9)
+            solver = self.solverClass()
+            solver._config.verbosity = 0
+            clauses = randomFormula(rnd, n, rnd.randint(n, 4*n), k=rnd.choice([2,3,3]))
+            for c in clauses: solver.addClause(c)
+            for call in range(5):                                  # Several calls, with different assumptions
+                assumptions = [rnd.randint(1,n) * rnd.choice([1,-1]) for k in range(rnd.randint(0,4))]
+                result = solver.solve(assumptions)
+                if bruteForceSat(clauses + [[a] for a in assumptions], n):
+                    self.assertEqual(result, solver._cst.lit_True, "should be SAT: " + str(clauses) + " under " + str(assumptions))
+                    self.assertTrue(isModel(clauses + [[a] for a in assumptions], solver.finalModel))
+                else:
+                    self.assertEqual(result, solver._cst.lit_False, "should be UNSAT: " + str(clauses) + " under " + str(assumptions))
+                    core = solver.finalCore
+                    self.assertTrue(all(a in assumptions for a in core), "not a subset of the assumptions: " + str(core))
+                    self.assertFalse(bruteForceSat(clauses + [[a] for a in core], n), "not a core: " + str(core))
+                    if bruteForceSat(clauses, n): self.assertGreater(len(core), 0); nbCores += 1
+                if rnd.randint(0,2) == 0:                          # Clauses can be added between two calls
+                    c = randomFormula(rnd, n, 1, k=3)[0]
+                    clauses.append(c); solver.addClause(c)
+        self.assertGreater(nbCores, 0)
+
 class LearntTests():
     ''' The learnt clauses must be consequences of the formula (checked by enumeration) '''
 
@@ -140,96 +169,96 @@ class LearntTests():
                 self.assertFalse(bruteForceSat(clauses + [[-l] for l in learnt], n), "not implied: " + str(learnt))
         self.assertGreater(nbLearnts, 0)
 
-class ChainDPLLTests(SolverTests, IncrementalTests, unittest.TestCase):
+class ChainDPLLTests(SolverTests, IncrementalTests, AssumptionTests, unittest.TestCase):
     solverClass = dpll.DPLL
 
-class ChainCDCLTests(SolverTests, IncrementalTests, LearntTests, unittest.TestCase):
+class ChainCDCLTests(SolverTests, IncrementalTests, AssumptionTests, LearntTests, unittest.TestCase):
     solverClass = cdcl.CDCL
 
-class ChainSATOTests(SolverTests, IncrementalTests, unittest.TestCase):
+class ChainSATOTests(SolverTests, IncrementalTests, AssumptionTests, unittest.TestCase):
     solverClass = sato.SATO
 
-class ChainWatchesTests(SolverTests, IncrementalTests, unittest.TestCase):
+class ChainWatchesTests(SolverTests, IncrementalTests, AssumptionTests, unittest.TestCase):
     solverClass = watches.Watches
 
-class ChainVSIDSTests(SolverTests, IncrementalTests, unittest.TestCase):
+class ChainVSIDSTests(SolverTests, IncrementalTests, AssumptionTests, unittest.TestCase):
     solverClass = vsids.VSIDS
 
-class RestartsTests(SolverTests, IncrementalTests, unittest.TestCase):
+class RestartsTests(SolverTests, IncrementalTests, AssumptionTests, unittest.TestCase):
     solverClass = restarts.Restarts
 
 class GeometricNoPhase(restarts.Restarts):
     class Configuration(restarts.Restarts.Configuration):
         restarts = 'geometric'; restartFirst = 2; phaseSaving = False; initialActivity = 'occurrences'
 
-class GeometricNoPhaseTests(SolverTests, IncrementalTests, unittest.TestCase):
+class GeometricNoPhaseTests(SolverTests, IncrementalTests, AssumptionTests, unittest.TestCase):
     solverClass = GeometricNoPhase
 
 class FrequentLuby(restarts.Restarts):
     class Configuration(restarts.Restarts.Configuration):
         restartFirst = 1                                           # (a restart at almost every conflict)
 
-class FrequentLubyTests(SolverTests, IncrementalTests, unittest.TestCase):
+class FrequentLubyTests(SolverTests, IncrementalTests, AssumptionTests, unittest.TestCase):
     solverClass = FrequentLuby
 
 class FrequentLBD(reduce.Reduce):
     class Configuration(reduce.Reduce.Configuration):
         firstReduce = 3; incReduce = 1                             # (reductions very often, to test them)
 
-class FrequentLBDTests(SolverTests, IncrementalTests, unittest.TestCase):
+class FrequentLBDTests(SolverTests, IncrementalTests, AssumptionTests, unittest.TestCase):
     solverClass = FrequentLBD
 
 class FrequentActivity(reduce.Reduce):
     class Configuration(reduce.Reduce.Configuration):
         reduce = 'activity'; learntsFactor = 0.05; restartFirst = 3
 
-class FrequentActivityTests(SolverTests, IncrementalTests, unittest.TestCase):
+class FrequentActivityTests(SolverTests, IncrementalTests, AssumptionTests, unittest.TestCase):
     solverClass = FrequentActivity
 
-class MinimizeTests(SolverTests, IncrementalTests, LearntTests, unittest.TestCase):
+class MinimizeTests(SolverTests, IncrementalTests, AssumptionTests, LearntTests, unittest.TestCase):
     solverClass = minimize.Minimize
 
 class LocalMinimize(minimize.Minimize):
     class Configuration(minimize.Minimize.Configuration):
         minimize = 'local'; firstReduce = 3; incReduce = 1
 
-class LocalMinimizeTests(SolverTests, IncrementalTests, LearntTests, unittest.TestCase):
+class LocalMinimizeTests(SolverTests, IncrementalTests, AssumptionTests, LearntTests, unittest.TestCase):
     solverClass = LocalMinimize
 
-class VMTFTests(SolverTests, IncrementalTests, LearntTests, unittest.TestCase):
+class VMTFTests(SolverTests, IncrementalTests, AssumptionTests, LearntTests, unittest.TestCase):
     solverClass = vmtf.VMTF
 
 class MinimizeVMTF(vmtf.MinimizeVMTF):
     class Configuration(vmtf.MinimizeVMTF.Configuration):
         restartFirst = 2; firstReduce = 3; incReduce = 1           # (restarts and reductions very often, to test them)
 
-class MinimizeVMTFTests(SolverTests, IncrementalTests, LearntTests, unittest.TestCase):
+class MinimizeVMTFTests(SolverTests, IncrementalTests, AssumptionTests, LearntTests, unittest.TestCase):
     solverClass = MinimizeVMTF
 
 class FrequentGlucose(glucose.Glucose):
     class Configuration(glucose.Glucose.Configuration):
         lbdQueueSize = 3; trailQueueSize = 5; blockingStart = 5; firstReduce = 5; incReduce = 1   # (very often, to test them)
 
-class GlucoseTests(SolverTests, IncrementalTests, LearntTests, unittest.TestCase):
+class GlucoseTests(SolverTests, IncrementalTests, AssumptionTests, LearntTests, unittest.TestCase):
     solverClass = FrequentGlucose
 
 class FrequentGlucoseVMTF(glucose.GlucoseVMTF):
     Configuration = FrequentGlucose.Configuration
 
-class GlucoseVMTFTests(SolverTests, IncrementalTests, LearntTests, unittest.TestCase):
+class GlucoseVMTFTests(SolverTests, IncrementalTests, AssumptionTests, LearntTests, unittest.TestCase):
     solverClass = FrequentGlucoseVMTF
 
 class BalancedDPLL(dpll.DPLL):
     class Configuration(dpll.DPLL.Configuration):
         heuristic = 'balanced'
 
-class BalancedDPLLTests(SolverTests, IncrementalTests, unittest.TestCase):
+class BalancedDPLLTests(SolverTests, IncrementalTests, AssumptionTests, unittest.TestCase):
     solverClass = BalancedDPLL
 
-class LookaheadTests(SolverTests, IncrementalTests, unittest.TestCase):
+class LookaheadTests(SolverTests, IncrementalTests, AssumptionTests, unittest.TestCase):
     solverClass = lookahead.Lookahead
 
-class DoubleLookaheadTests(SolverTests, IncrementalTests, unittest.TestCase):
+class DoubleLookaheadTests(SolverTests, IncrementalTests, AssumptionTests, unittest.TestCase):
     solverClass = lookahead.DoubleLookahead
 
 
